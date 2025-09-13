@@ -1,0 +1,26 @@
+{
+  "name": "snake-multiplayer",
+  "version": "1.0.0",
+  "description": "Servidor multiplayer para jogo da cobrinha com WebSocket e bots",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "snake",
+    "multiplayer",
+    "websocket",
+    "game",
+    "nodejs"
+  ],
+  "author": "SeuNome",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.1.0",
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

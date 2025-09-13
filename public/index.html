@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Snake Multiplayer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="menuCanvas" width="800" height="600"></canvas>
+
+  <div id="menu" class="menu-container">
+    <h1 class="game-title">SNAKE MULTIPLAYER</h1>
+    <button id="soloBtn" class="menu-btn">Jogar Solo</button>
+    <button id="multiBtn" class="menu-btn">Multiplayer</button>
+  </div>
+
+  <div id="multiMenu" class="menu-container">
+    <h2>Multiplayer</h2>
+    <input id="nameInput" placeholder="Seu Nome">
+    <button id="createRoomBtn" class="menu-btn">Criar Sala</button>
+    <input id="pinInput" placeholder="PIN da Sala">
+    <button id="joinRoomBtn" class="menu-btn">Entrar na Sala</button>
+    <button id="backFromMulti" class="menu-btn back-btn">Voltar</button>
+  </div>
+
+  <div id="lobby" class="menu-container">
+    <h2>Lobby</h2>
+    <div id="pinDisplay"></div>
+    <div id="playersList"></div>
+    <button id="readyBtn" class="menu-btn">Pronto</button>
+    <button id="backFromLobby" class="menu-btn back-btn">Voltar</button>
+    <div id="scoreboard"></div>
+    <div id="messages"></div>
+  </div>
+
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <script src="client.js"></script>
+</body>
+</html>
