@@ -28,6 +28,17 @@ let ws, playerId, gameState, playerName, currentPIN;
 let isDrawing = false;
 let temporaryMessages = [];
 
+// --- Função para obter URL do WebSocket ---
+const getWebSocketURL = () => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'ws://localhost:8080';
+    } else {
+        // Usa wss:// para HTTPS e ws:// para HTTP
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${protocol}//${window.location.host}`;
+    }
+};
+
 // --- Inicial ---
 canvas.style.display = 'none';
 multiMenuDiv.style.display = 'none';
@@ -97,7 +108,7 @@ createRoomBtn.onclick = () => {
         return;
     }
     
-    ws = new WebSocket('ws://localhost:8080');
+    ws = new WebSocket(getWebSocketURL()); // ✅ CORRIGIDO
     ws.onopen = () => { 
         ws.send(JSON.stringify({type: 'join', pin: generateTempPIN(), name: playerName})); 
     };
@@ -118,7 +129,7 @@ joinRoomBtn.onclick = () => {
         return;
     }
     
-    ws = new WebSocket('ws://localhost:8080');
+    ws = new WebSocket(getWebSocketURL()); // ✅ CORRIGIDO
     ws.onopen = () => { 
         ws.send(JSON.stringify({type: 'join', pin: currentPIN, name: playerName})); 
     };
@@ -134,7 +145,7 @@ readyBtn.onclick = () => {
 
 // --- Solo ---
 function startSolo(name) {
-    ws = new WebSocket('ws://localhost:8080');
+    ws = new WebSocket(getWebSocketURL()); // ✅ CORRIGIDO
     ws.onopen = () => { 
         ws.send(JSON.stringify({type: 'solo', name})); 
     };
