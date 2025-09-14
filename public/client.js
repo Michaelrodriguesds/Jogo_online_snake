@@ -24,26 +24,134 @@ const playersList = document.getElementById('playersList');
 const scoreboard = document.getElementById('scoreboard');
 const messagesDiv = document.getElementById('messages');
 
+// Controles mobile
+const mobileControls = document.getElementById('mobileControls');
+const upBtn = document.getElementById('upBtn');
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+const downBtn = document.getElementById('downBtn');
+
 let ws, playerId, gameState, playerName, currentPIN;
 let isDrawing = false;
 let temporaryMessages = [];
+const GRID_SIZE = 20;
 
 // --- Função para obter URL do WebSocket ---
 const getWebSocketURL = () => {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         return 'ws://localhost:8080';
     } else {
-        // Usa wss:// para HTTPS e ws:// para HTTP
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         return `${protocol}//${window.location.host}`;
     }
 };
+
+// --- Detectar se é dispositivo mobile ---
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+// --- Enviar movimento ---
+function sendMove(dx, dy) {
+    if (!ws || !gameState || gameState.status !== 'playing') return;
+    
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({type: 'move', dx, dy}));
+    }
+}
+
+// --- Configurar controles mobile ---
+function setupMobileControls() {
+    if (isMobileDevice()) {
+        mobileControls.classList.add('active');
+        
+        // Eventos para os botões
+        upBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            sendMove(0, -GRID_SIZE);
+        });
+        
+        downBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            sendMove(0, GRID_SIZE);
+        });
+        
+        leftBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            sendMove(-GRID_SIZE, 0);
+        });
+        
+        rightBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            sendMove(GRID_SIZE, 0);
+        });
+        
+        // Prevenir comportamento padrão
+        [upBtn, downBtn, leftBtn, rightBtn].forEach(btn => {
+            btn.addEventListener('touchend', (e) => e.preventDefault());
+            btn.addEventListener('touchcancel', (e) => e.preventDefault());
+        });
+    }
+}
+
+// --- Suporte a Swipe Gestures ---
+function setupSwipeControls() {
+    if (!isMobileDevice()) return;
+    
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const minSwipeDistance = 30;
+    
+    canvas.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        e.preventDefault();
+    }, { passive: false });
+    
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+    }, { passive: false });
+    
+    canvas.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const touchEndY = e.changedTouches[0].clientY;
+        
+        const diffX = touchEndX - touchStartX;
+        const diffY = touchEndY - touchStartY;
+        
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+            // Swipe horizontal
+            if (Math.abs(diffX) > minSwipeDistance) {
+                if (diffX > 0) {
+                    sendMove(GRID_SIZE, 0); // Direita
+                } else {
+                    sendMove(-GRID_SIZE, 0); // Esquerda
+                }
+            }
+        } else {
+            // Swipe vertical
+            if (Math.abs(diffY) > minSwipeDistance) {
+                if (diffY > 0) {
+                    sendMove(0, GRID_SIZE); // Baixo
+                } else {
+                    sendMove(0, -GRID_SIZE); // Cima
+                }
+            }
+        }
+        
+        e.preventDefault();
+    }, { passive: false });
+}
 
 // --- Inicial ---
 canvas.style.display = 'none';
 multiMenuDiv.style.display = 'none';
 lobbyDiv.style.display = 'none';
 menuDiv.style.display = 'flex';
+
+// --- Inicializar controles mobile ---
+setupMobileControls();
+setupSwipeControls();
 
 // --- Tela inicial animada ---
 let snakeX = 0, snakeY = 40, snakeDir = 1;
@@ -82,7 +190,6 @@ backFromMulti.onclick = () => {
     menuDiv.style.display = 'flex';
     menuCanvas.style.display = 'block';
     
-    // Fecha conexão se existir
     if (ws) {
         ws.close();
         ws = null;
@@ -93,7 +200,6 @@ backFromLobby.onclick = () => {
     lobbyDiv.style.display = 'none';
     multiMenuDiv.style.display = 'block';
     
-    // Fecha conexão se existir
     if (ws) {
         ws.close();
         ws = null;
@@ -108,7 +214,7 @@ createRoomBtn.onclick = () => {
         return;
     }
     
-    ws = new WebSocket(getWebSocketURL()); // ✅ CORRIGIDO
+    ws = new WebSocket(getWebSocketURL());
     ws.onopen = () => { 
         ws.send(JSON.stringify({type: 'join', pin: generateTempPIN(), name: playerName})); 
     };
@@ -129,7 +235,7 @@ joinRoomBtn.onclick = () => {
         return;
     }
     
-    ws = new WebSocket(getWebSocketURL()); // ✅ CORRIGIDO
+    ws = new WebSocket(getWebSocketURL());
     ws.onopen = () => { 
         ws.send(JSON.stringify({type: 'join', pin: currentPIN, name: playerName})); 
     };
@@ -145,7 +251,7 @@ readyBtn.onclick = () => {
 
 // --- Solo ---
 function startSolo(name) {
-    ws = new WebSocket(getWebSocketURL()); // ✅ CORRIGIDO
+    ws = new WebSocket(getWebSocketURL());
     ws.onopen = () => { 
         ws.send(JSON.stringify({type: 'solo', name})); 
     };
@@ -174,12 +280,10 @@ function setupWS() {
             else if (data.type === 'update') {
                 gameState = data.gameState;
                 
-                // Atualiza mensagens temporárias
                 if (gameState.temporaryMessages && gameState.temporaryMessages.length > 0) {
                     temporaryMessages = gameState.temporaryMessages;
                 }
                 
-                // Atualiza mensagens do chat
                 if (gameState.messages && gameState.messages.length > 0) {
                     messagesDiv.innerHTML = gameState.messages.slice(-5).join('<br>');
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -239,24 +343,28 @@ function updateLobby(state) {
 document.addEventListener('keydown', e => {
     if (!ws || !gameState || gameState.status !== 'playing') return;
     
-    let dx = 0, dy = 0, grid = 20;
+    let dx = 0, dy = 0;
     
-    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') dy = -grid;
-    else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') dy = grid;
-    else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') dx = -grid;
-    else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') dx = grid;
-    else return; // Ignora outras teclas
-    
-    if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({type: 'move', dx, dy}));
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        dy = -GRID_SIZE;
+    } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        dy = GRID_SIZE;
+    } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        dx = -GRID_SIZE;
+    } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        dx = GRID_SIZE;
+    } else {
+        return;
     }
+    
+    sendMove(dx, dy);
 });
 
 // --- Limpar mensagens temporárias antigas ---
 function clearOldTemporaryMessages() {
     const now = Date.now();
     temporaryMessages = temporaryMessages.filter(
-        msg => now - msg.timestamp < 5000 // Mantém por 5 segundos
+        msg => now - msg.timestamp < 5000
     );
 }
 
@@ -264,14 +372,11 @@ function clearOldTemporaryMessages() {
 function draw() {
     if (!gameState || !isDrawing) return;
     
-    // Limpa mensagens temporárias antigas
     clearOldTemporaryMessages();
     
-    // Limpa o canvas
     ctx.fillStyle = '#111';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Desenha grid (opcional)
     ctx.strokeStyle = '#222';
     ctx.lineWidth = 1;
     for (let x = 0; x < canvas.width; x += 20) {
@@ -287,42 +392,36 @@ function draw() {
         ctx.stroke();
     }
     
-    // Desenha comida
     ctx.fillStyle = '#FF5555';
     ctx.fillRect(gameState.food.x, gameState.food.y, 19, 19);
     ctx.strokeStyle = '#AA0000';
     ctx.strokeRect(gameState.food.x, gameState.food.y, 19, 19);
     
-    // Desenha cobras
     for (let id in gameState.snakes) {
         const snake = gameState.snakes[id];
         if (!snake.alive) continue;
         
-        // Usa a cor definida no servidor ou uma cor padrão
         ctx.fillStyle = snake.color || '#00FF00';
         
-        // Desenha o corpo
         snake.body.forEach((seg, index) => {
             ctx.fillRect(seg.x, seg.y, 19, 19);
             
-            // Adiciona um efeito visual para a cabeça
             if (index === 0) {
                 ctx.strokeStyle = '#FFFFFF';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(seg.x, seg.y, 19, 19);
                 
-                // Olhos da cobra
                 ctx.fillStyle = '#000';
-                if (snake.dx > 0) { // Direita
+                if (snake.dx > 0) {
                     ctx.fillRect(seg.x + 13, seg.y + 4, 4, 4);
                     ctx.fillRect(seg.x + 13, seg.y + 12, 4, 4);
-                } else if (snake.dx < 0) { // Esquerda
+                } else if (snake.dx < 0) {
                     ctx.fillRect(seg.x + 3, seg.y + 4, 4, 4);
                     ctx.fillRect(seg.x + 3, seg.y + 12, 4, 4);
-                } else if (snake.dy > 0) { // Baixo
+                } else if (snake.dy > 0) {
                     ctx.fillRect(seg.x + 4, seg.y + 13, 4, 4);
                     ctx.fillRect(seg.x + 12, seg.y + 13, 4, 4);
-                } else if (snake.dy < 0) { // Cima
+                } else if (snake.dy < 0) {
                     ctx.fillRect(seg.x + 4, seg.y + 3, 4, 4);
                     ctx.fillRect(seg.x + 12, seg.y + 3, 4, 4);
                 }
@@ -331,25 +430,21 @@ function draw() {
             }
         });
         
-        // Nome do jogador
         ctx.fillStyle = '#FFFFFF';
         ctx.font = '12px Arial';
         ctx.textAlign = 'center';
         ctx.fillText(snake.name, snake.body[0].x + 10, snake.body[0].y - 5);
     }
     
-    // Desenha mensagens temporárias (mortes)
     if (temporaryMessages.length > 0) {
         ctx.fillStyle = '#FFFFFF';
         ctx.font = '20px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Desenha a mensagem mais recente no centro da tela
         const latestMessage = temporaryMessages[temporaryMessages.length - 1];
         ctx.fillText(latestMessage.text, canvas.width / 2, 50);
         
-        // Desenha um fundo semi-transparente para melhor legibilidade
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
         const textWidth = ctx.measureText(latestMessage.text).width;
         ctx.fillRect(
@@ -359,16 +454,13 @@ function draw() {
             30
         );
         
-        // Redesenha o texto por cima do fundo
         ctx.fillStyle = '#FF5555';
         ctx.fillText(latestMessage.text, canvas.width / 2, 50);
     }
     
-    // Atualiza scoreboard
     const alivePlayers = Object.values(gameState.snakes).filter(s => s.alive).map(s => s.name);
     scoreboard.innerHTML = "Jogadores vivos: " + (alivePlayers.length > 0 ? alivePlayers.join(', ') : 'Nenhum');
     
-    // Mostra pontuação atual
     const mySnake = gameState.snakes[playerId];
     if (mySnake) {
         const scoreText = `Sua pontuação: ${mySnake.body.length}`;
@@ -387,7 +479,6 @@ function draw() {
 
 // --- Pódio ---
 function showPodium() {
-    // Limpa o canvas
     ctx.fillStyle = '#111';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
@@ -400,14 +491,12 @@ function showPodium() {
     ctx.fillText('🏆 FIM DE JOGO 🏆', canvas.width / 2, 100);
     
     if (gameState.leaderboard && gameState.leaderboard.length > 0) {
-        // Desenha o vencedor
         const winner = gameState.leaderboard[0];
         ctx.fillStyle = '#00FF00';
         ctx.font = '36px Arial';
         ctx.fillText(`Vencedor: ${winner.name}`, canvas.width / 2, 170);
         ctx.fillText(`Pontuação: ${winner.score}`, canvas.width / 2, 220);
         
-        // Desenha o ranking
         ctx.fillStyle = '#FFFFFF';
         ctx.font = '24px Arial';
         ctx.fillText('Ranking Final:', canvas.width / 2, 280);
@@ -418,7 +507,6 @@ function showPodium() {
             ctx.fillText(`${medal} ${player.name} - ${player.score}`, canvas.width / 2, y);
         });
         
-        // Mensagem para jogar novamente
         ctx.fillStyle = '#AAAAAA';
         ctx.font = '18px Arial';
         ctx.fillText('Recarregue a página para jogar novamente', canvas.width / 2, 550);

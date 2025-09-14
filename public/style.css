@@ -14,6 +14,7 @@ html, body {
     background-color: #111;
     font-family: 'Arial', sans-serif;
     overflow: hidden;
+    touch-action: manipulation;
 }
 
 /* Canvas */
@@ -148,8 +149,71 @@ input:focus {
     display: none;
 }
 
-/* Responsividade */
-@media (max-width: 600px) {
+/* Controles para Mobile */
+.mobile-controls {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    justify-content: center;
+    gap: 20px;
+    z-index: 100;
+}
+
+.mobile-controls.active {
+    display: flex;
+}
+
+.control-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: rgba(0, 255, 0, 0.7);
+    border: 2px solid #00CC00;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: white;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+.control-btn:active {
+    background-color: #00CC00;
+    transform: scale(0.95);
+}
+
+.control-direction {
+    display: grid;
+    grid-template-columns: repeat(3, 60px);
+    grid-template-rows: repeat(3, 60px);
+    gap: 5px;
+}
+
+.control-direction .control-btn {
+    width: 50px;
+    height: 50px;
+}
+
+/* Esconde controles em desktop */
+@media (min-width: 768px) {
+    .mobile-controls {
+        display: none !important;
+    }
+}
+
+/* Mostra controles apenas em mobile */
+@media (max-width: 767px) {
+    .mobile-controls {
+        display: flex;
+    }
+    
+    canvas {
+        margin-bottom: 100px; /* Espaço para os controles */
+    }
+    
     .menu-container {
         padding: 20px;
         width: 90%;
