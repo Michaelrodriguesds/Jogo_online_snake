@@ -535,7 +535,7 @@ function startGame(pin) {
                     
                     if (other.body.some(seg => seg.x === head.x && seg.y === head.y)) {
                         snake.alive = false;
-                        const deathMessage = `${snake.name} colidiu com ${other.name}!`;
+                        const deathMessage = `${snake.name} Morreu pra ${other.name}!`;
                         addTemporaryMessage(room, deathMessage);
                         state.messages.push(deathMessage);
                         state.leaderboard.push({name: snake.name, score: snake.body.length});
