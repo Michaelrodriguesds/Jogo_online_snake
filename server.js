@@ -9,7 +9,7 @@ const GRID_SIZE = 20;
 const CANVAS_SIZE = 800;
 const MAX_PLAYERS = 4;
 const TICK_RATE = 100;
-const AUTO_START_TIME = 10000; // 10 segundos para iniciar automaticamente
+const AUTO_START_TIME = 120000; // 2 minutos
 
 // --- Servidor HTTP + Express ---
 const app = express();
@@ -34,7 +34,9 @@ function createRoom(pin) {
             messages: [],
             temporaryMessages: []
         },
-        autoStartTimer: null
+        autoStartTimer: null,
+        autoStartInterval: null,
+        startTime: null
     };
     spawnFood(pin);
 }
@@ -171,11 +173,23 @@ function handleJoin(ws, data) {
         startAutoStartTimer(pin);
     }
 
-    // Preenche com bots se necessário (mínimo 2 jogadores para iniciar)
+    // Preenche com bots se necessário
     if (room.players.length === 1) {
         addBot(pin);
         addBot(pin);
     }
+}
+
+// --- Função para broadcast do tempo restante ---
+function broadcastTimeRemaining(room, timeRemaining) {
+    room.players.forEach(p => {
+        if (p.ws && p.ws.readyState === WebSocket.OPEN) {
+            p.ws.send(JSON.stringify({
+                type: 'timeUpdate',
+                timeRemaining: Math.ceil(timeRemaining / 1000) // segundos
+            }));
+        }
+    });
 }
 
 // --- Timer para início automático ---
@@ -183,17 +197,32 @@ function startAutoStartTimer(pin) {
     const room = rooms[pin];
     if (!room || room.autoStartTimer) return;
     
-    room.autoStartTimer = setTimeout(() => {
-        if (room.gameState.status === 'waiting') {
-            // Marca todos como ready e inicia o jogo
-            room.players.forEach(player => {
-                player.ready = true;
-            });
-            room.gameState.status = 'playing';
-            startGame(pin);
-            broadcastLobby(room);
+    room.startTime = Date.now();
+    
+    // Envia o tempo inicial
+    broadcastTimeRemaining(room, AUTO_START_TIME);
+    
+    room.autoStartInterval = setInterval(() => {
+        const elapsed = Date.now() - room.startTime;
+        const timeRemaining = AUTO_START_TIME - elapsed;
+        
+        // Envia atualização do tempo a cada segundo
+        broadcastTimeRemaining(room, timeRemaining);
+        
+        if (timeRemaining <= 0) {
+            clearInterval(room.autoStartInterval);
+            room.autoStartInterval = null;
+            
+            if (room.gameState.status === 'waiting') {
+                room.players.forEach(player => {
+                    player.ready = true;
+                });
+                room.gameState.status = 'playing';
+                startGame(pin);
+                broadcastLobby(room);
+            }
         }
-    }, AUTO_START_TIME);
+    }, 1000); // Atualiza a cada segundo
 }
 
 // --- Jogador solo ---
@@ -237,7 +266,7 @@ function addBot(pin) {
         dy: 0,
         alive: true,
         name: `Bot${room.players.length}`,
-        speed: 2.2, // Bots mais lentos para evitar suicídio
+        speed: 2.2,
         moveCooldown: 0,
         isBot: true,
         survivalTime: 0,
@@ -272,9 +301,11 @@ function handleReady(ws) {
     broadcastLobby(room);
 
     // Cancela timer de início automático se todos estiverem prontos
-    if (room.autoStartTimer) {
-        clearTimeout(room.autoStartTimer);
-        room.autoStartTimer = null;
+    if (room.autoStartInterval) {
+        clearInterval(room.autoStartInterval);
+        room.autoStartInterval = null;
+        // Envia tempo zerado para esconder o contador
+        broadcastTimeRemaining(room, 0);
     }
 
     if (room.players.every(p => p.ready)) {
@@ -288,9 +319,15 @@ function handleStartGame(ws) {
     const room = rooms[ws.roomPin];
     if (!room) return;
     
-    // Apenas o criador da sala pode forçar início
     const isCreator = room.players[0] && room.players[0].ws === ws;
     if (isCreator && room.gameState.status === 'waiting') {
+        // Cancela o timer se existir
+        if (room.autoStartInterval) {
+            clearInterval(room.autoStartInterval);
+            room.autoStartInterval = null;
+            broadcastTimeRemaining(room, 0);
+        }
+        
         room.gameState.status = 'playing';
         startGame(room.pin);
         broadcastLobby(room);
@@ -309,9 +346,9 @@ function handleDisconnect(ws) {
     }
     
     // Cancela timer se não houver mais jogadores humanos
-    if (room.autoStartTimer && room.players.filter(p => !p.isBot).length === 0) {
-        clearTimeout(room.autoStartTimer);
-        room.autoStartTimer = null;
+    if (room.autoStartInterval && room.players.filter(p => !p.isBot).length === 0) {
+        clearInterval(room.autoStartInterval);
+        room.autoStartInterval = null;
     }
     
     if (room.players.length === 0) {
@@ -328,7 +365,6 @@ function handleDisconnect(ws) {
 function moveBot(snake, food, room) {
     const head = snake.body[0];
     
-    // Calcula direções possíveis (evitando paredes e próprio corpo)
     const possibleDirections = [];
     
     // Direita
@@ -363,14 +399,11 @@ function moveBot(snake, food, room) {
         }
     }
     
-    // Se não há direções seguras, mantém a atual
     if (possibleDirections.length === 0) {
         return { dx: snake.dx, dy: snake.dy };
     }
     
-    // 70% de chance de ir em direção à comida
     if (Math.random() < 0.7) {
-        // Encontra a melhor direção em relação à comida
         let bestDirection = null;
         let minDistance = Infinity;
         
@@ -389,25 +422,21 @@ function moveBot(snake, food, room) {
         }
     }
     
-    // 30% de chance de movimento aleatório (entre as direções seguras)
     return possibleDirections[Math.floor(Math.random() * possibleDirections.length)];
 }
 
 // --- Verifica se movimento é seguro ---
 function isSafeMove(snake, newHead, room) {
-    // Verifica colisão com paredes
     if (newHead.x < 0 || newHead.x >= CANVAS_SIZE || newHead.y < 0 || newHead.y >= CANVAS_SIZE) {
         return false;
     }
     
-    // Verifica colisão com próprio corpo (exceto a cauda)
     for (let i = 0; i < snake.body.length - 1; i++) {
         if (snake.body[i].x === newHead.x && snake.body[i].y === newHead.y) {
             return false;
         }
     }
     
-    // Verifica colisão com outras cobras
     for (let id in room.gameState.snakes) {
         if (id === snake.id) continue;
         

@@ -35,6 +35,7 @@ let ws, playerId, gameState, playerName, currentPIN;
 let isDrawing = false;
 let temporaryMessages = [];
 const GRID_SIZE = 20;
+let timeRemaining = 0;
 
 // --- Função para obter URL do WebSocket ---
 const getWebSocketURL = () => {
@@ -65,7 +66,6 @@ function setupMobileControls() {
     if (isMobileDevice()) {
         mobileControls.classList.add('active');
         
-        // Eventos para os botões
         upBtn.addEventListener('touchstart', (e) => {
             e.preventDefault();
             sendMove(0, -GRID_SIZE);
@@ -86,7 +86,6 @@ function setupMobileControls() {
             sendMove(GRID_SIZE, 0);
         });
         
-        // Prevenir comportamento padrão
         [upBtn, downBtn, leftBtn, rightBtn].forEach(btn => {
             btn.addEventListener('touchend', (e) => e.preventDefault());
             btn.addEventListener('touchcancel', (e) => e.preventDefault());
@@ -120,27 +119,57 @@ function setupSwipeControls() {
         const diffY = touchEndY - touchStartY;
         
         if (Math.abs(diffX) > Math.abs(diffY)) {
-            // Swipe horizontal
             if (Math.abs(diffX) > minSwipeDistance) {
                 if (diffX > 0) {
-                    sendMove(GRID_SIZE, 0); // Direita
+                    sendMove(GRID_SIZE, 0);
                 } else {
-                    sendMove(-GRID_SIZE, 0); // Esquerda
+                    sendMove(-GRID_SIZE, 0);
                 }
             }
         } else {
-            // Swipe vertical
             if (Math.abs(diffY) > minSwipeDistance) {
                 if (diffY > 0) {
-                    sendMove(0, GRID_SIZE); // Baixo
+                    sendMove(0, GRID_SIZE);
                 } else {
-                    sendMove(0, -GRID_SIZE); // Cima
+                    sendMove(0, -GRID_SIZE);
                 }
             }
         }
         
         e.preventDefault();
     }, { passive: false });
+}
+
+// --- Atualizar display do timer ---
+function updateTimerDisplay() {
+    let timerElement = document.getElementById('timerDisplay');
+    
+    if (!timerElement) {
+        timerElement = document.createElement('div');
+        timerElement.id = 'timerDisplay';
+        timerElement.style.cssText = `
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #FFD700;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 20px;
+            z-index: 1000;
+            display: none;
+        `;
+        document.body.appendChild(timerElement);
+    }
+    
+    if (timeRemaining > 0) {
+        timerElement.innerHTML = `⏰ Iniciando em: ${timeRemaining}s`;
+        timerElement.style.display = 'block';
+    } else {
+        timerElement.style.display = 'none';
+    }
 }
 
 // --- Inicial ---
@@ -302,6 +331,10 @@ function setupWS() {
                     showPodium();
                 }
             } 
+            else if (data.type === 'timeUpdate') {
+                timeRemaining = data.timeRemaining;
+                updateTimerDisplay();
+            }
             else if (data.type === 'error') {
                 alert(data.message);
                 lobbyDiv.style.display = 'none';
@@ -322,6 +355,8 @@ function setupWS() {
     ws.onclose = () => {
         console.log('Conexão fechada');
         isDrawing = false;
+        timeRemaining = 0;
+        updateTimerDisplay();
     };
 }
 
