@@ -11,20 +11,34 @@ html, body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #111;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     font-family: 'Arial', sans-serif;
     overflow: hidden;
     touch-action: manipulation;
     position: relative;
+    color: #fff;
 }
 
 /* Canvas */
 canvas {
     display: block;
     margin: 0 auto;
-    border-radius: 10px;
+    border-radius: 15px;
     background-color: #222;
-    box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+    box-shadow: 
+        0 0 30px rgba(0, 255, 0, 0.3),
+        inset 0 0 20px rgba(0, 0, 0, 0.5);
+    border: 3px solid #00FF00;
+}
+
+#gameCanvas {
+    position: relative;
+    z-index: 10;
+}
+
+#menuCanvas {
+    border: 2px solid rgba(0, 255, 0, 0.5);
+    background: linear-gradient(45deg, #1a1a2e, #16213e);
 }
 
 /* Containers de menu/lobby */
@@ -36,114 +50,254 @@ canvas {
     gap: 20px;
     text-align: center;
     color: #fff;
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 30px 50px;
-    border-radius: 15px;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(15px);
+    padding: 40px 60px;
+    border-radius: 20px;
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    border: 2px solid #00FF00;
-    min-width: 300px;
+    border: 3px solid #00FF00;
+    box-shadow: 
+        0 0 40px rgba(0, 255, 0, 0.2),
+        inset 0 0 30px rgba(0, 0, 0, 0.3);
+    min-width: 350px;
     z-index: 100;
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
 }
 
 /* Título */
 .game-title {
-    font-size: 36px;
+    font-size: 42px;
     color: #00FF00;
-    text-shadow: 2px 2px #000;
-    margin-bottom: 20px;
+    text-shadow: 
+        2px 2px 4px #000,
+        0 0 20px rgba(0, 255, 0, 0.5);
+    margin-bottom: 25px;
     font-weight: bold;
+    letter-spacing: 2px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        text-shadow: 
+            2px 2px 4px #000,
+            0 0 20px rgba(0, 255, 0, 0.5);
+    }
+    50% {
+        text-shadow: 
+            2px 2px 4px #000,
+            0 0 30px rgba(0, 255, 0, 0.8),
+            0 0 40px rgba(0, 255, 0, 0.3);
+    }
 }
 
 h2 {
     color: #00FF00;
-    margin-bottom: 15px;
-    font-size: 28px;
+    margin-bottom: 20px;
+    font-size: 32px;
+    text-shadow: 2px 2px 4px #000;
 }
 
 /* Botões */
 .menu-btn {
-    padding: 12px 30px;
+    padding: 15px 35px;
     font-size: 18px;
     border: none;
-    border-radius: 8px;
+    border-radius: 12px;
     cursor: pointer;
-    background-color: #00FF00;
+    background: linear-gradient(45deg, #00FF00, #00CC00);
     color: #000;
-    transition: all 0.2s;
+    transition: all 0.3s ease;
     font-weight: bold;
-    width: 200px;
+    width: 220px;
+    box-shadow: 
+        0 4px 15px rgba(0, 255, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.menu-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
 }
 
 .menu-btn:hover {
-    background-color: #00CC00;
-    transform: scale(1.05);
-    box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+    background: linear-gradient(45deg, #00CC00, #00AA00);
+    transform: translateY(-2px);
+    box-shadow: 
+        0 6px 20px rgba(0, 255, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.menu-btn:hover::before {
+    left: 100%;
+}
+
+.menu-btn:active {
+    transform: translateY(0);
+    box-shadow: 
+        0 2px 10px rgba(0, 255, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.menu-btn:disabled {
+    background: linear-gradient(45deg, #666, #555);
+    color: #999;
+    cursor: not-allowed;
+    opacity: 0.7;
+    transform: none;
 }
 
 /* Botão de voltar */
 .back-btn {
-    background-color: #FF5555;
+    background: linear-gradient(45deg, #FF5555, #CC4444);
     color: #fff;
+    box-shadow: 
+        0 4px 15px rgba(255, 85, 85, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .back-btn:hover {
-    background-color: #CC4444;
-    box-shadow: 0 0 15px rgba(255, 85, 85, 0.5);
+    background: linear-gradient(45deg, #CC4444, #AA3333);
+    box-shadow: 
+        0 6px 20px rgba(255, 85, 85, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 /* Inputs */
 input {
-    padding: 12px;
+    padding: 15px;
     font-size: 16px;
-    border-radius: 6px;
+    border-radius: 10px;
     border: 2px solid #00FF00;
     text-align: center;
-    background-color: #222;
+    background: rgba(34, 34, 34, 0.8);
+    backdrop-filter: blur(10px);
     color: #FFF;
-    width: 200px;
+    width: 220px;
+    transition: all 0.3s ease;
+    box-shadow: 
+        inset 0 2px 5px rgba(0, 0, 0, 0.3),
+        0 0 10px rgba(0, 255, 0, 0.1);
+}
+
+input::placeholder {
+    color: rgba(255, 255, 255, 0.6);
 }
 
 input:focus {
     outline: none;
     border-color: #00CC00;
-    box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    box-shadow: 
+        inset 0 2px 5px rgba(0, 0, 0, 0.3),
+        0 0 20px rgba(0, 255, 0, 0.4);
+    background: rgba(34, 34, 34, 0.9);
 }
 
 /* Scoreboard e mensagens */
 #scoreboard, #messages {
-    margin-top: 15px;
+    position: fixed;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    padding: 15px 20px;
+    border-radius: 15px;
+    border: 2px solid rgba(0, 255, 0, 0.3);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    z-index: 50;
+    max-width: 300px;
+    display: none;
+}
+
+#scoreboard {
+    top: 20px;
     color: #FFD700;
     font-size: 16px;
-    text-align: center;
-}
-
-#messages {
-    max-height: 100px;
-    overflow-y: auto;
-    font-size: 14px;
-    color: #AAAAAA;
-}
-
-#pinDisplay {
-    font-size: 20px;
-    color: #00FF00;
-    margin-bottom: 15px;
     font-weight: bold;
 }
 
+#messages {
+    top: 100px;
+    max-height: 120px;
+    overflow-y: auto;
+    font-size: 14px;
+    color: #AAAAAA;
+    line-height: 1.4;
+}
+
+/* Scrollbar personalizada */
+#messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+#messages::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+#messages::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 0, 0.5);
+    border-radius: 3px;
+}
+
+#pinDisplay {
+    font-size: 24px;
+    color: #00FF00;
+    margin-bottom: 20px;
+    font-weight: bold;
+    text-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+    background: rgba(0, 255, 0, 0.1);
+    padding: 15px 25px;
+    border-radius: 12px;
+    border: 2px solid #00FF00;
+}
+
 #playersList {
-    margin: 15px 0;
+    margin: 20px 0;
     font-size: 16px;
+    min-height: 100px;
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
 }
 
 .player-item {
-    margin: 5px 0;
-    padding: 5px;
-    background-color: rgba(0, 255, 0, 0.1);
-    border-radius: 5px;
+    margin: 8px 0;
+    padding: 12px 15px;
+    background: rgba(0, 255, 0, 0.15);
+    border-radius: 8px;
+    border-left: 4px solid #00FF00;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.player-item:hover {
+    background: rgba(0, 255, 0, 0.25);
+    transform: translateX(5px);
 }
 
 /* Ocultar elementos inicialmente */
@@ -151,52 +305,96 @@ input:focus {
     display: none;
 }
 
+/* Timer de início */
+#timerDisplay {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #FFD700;
+    font-size: 20px;
+    font-weight: bold;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    padding: 15px 25px;
+    border-radius: 25px;
+    border: 2px solid #FFD700;
+    box-shadow: 
+        0 0 30px rgba(255, 215, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    z-index: 1000;
+    display: none;
+    animation: timerPulse 1s ease-in-out infinite;
+}
+
+@keyframes timerPulse {
+    0%, 100% {
+        box-shadow: 
+            0 0 30px rgba(255, 215, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+    50% {
+        box-shadow: 
+            0 0 40px rgba(255, 215, 0, 0.5),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+}
+
 /* Controles para Mobile */
 .mobile-controls {
     display: none;
     position: fixed;
-    bottom: 20px;
-    left: 0;
-    right: 0;
-    justify-content: center;
-    gap: 20px;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 100;
 }
 
 .mobile-controls.active {
     display: flex;
+    justify-content: center;
 }
 
 .control-btn {
-    width: 60px;
-    height: 60px;
+    width: 65px;
+    height: 65px;
     border-radius: 50%;
-    background-color: rgba(0, 255, 0, 0.7);
-    border: 2px solid #00CC00;
+    background: linear-gradient(45deg, rgba(0, 255, 0, 0.8), rgba(0, 200, 0, 0.8));
+    border: 3px solid #00CC00;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
+    font-size: 28px;
     color: white;
+    font-weight: bold;
     user-select: none;
     touch-action: manipulation;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 
+        0 4px 15px rgba(0, 255, 0, 0.3),
+        inset 0 2px 5px rgba(255, 255, 255, 0.2);
 }
 
 .control-btn:active {
-    background-color: #00CC00;
+    background: linear-gradient(45deg, #00CC00, #00AA00);
     transform: scale(0.95);
+    box-shadow: 
+        0 2px 10px rgba(0, 255, 0, 0.4),
+        inset 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 .control-direction {
     display: grid;
-    grid-template-columns: repeat(3, 60px);
-    grid-template-rows: repeat(3, 60px);
-    gap: 5px;
+    grid-template-columns: repeat(3, 65px);
+    grid-template-rows: repeat(3, 65px);
+    gap: 8px;
 }
 
 .control-direction .control-btn {
-    width: 50px;
-    height: 50px;
+    width: 55px;
+    height: 55px;
+    font-size: 24px;
 }
 
 /* Footer */
@@ -209,13 +407,14 @@ input:focus {
     color: #888;
     font-size: 14px;
     z-index: 90;
+    pointer-events: none;
 }
 
 .footer-content {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
 }
 
 .linkedin-link {
@@ -223,7 +422,8 @@ input:focus {
     align-items: center;
     text-decoration: none;
     color: #0077B5;
-    transition: transform 0.2s;
+    transition: all 0.3s ease;
+    pointer-events: auto;
 }
 
 .linkedin-link:hover {
@@ -232,86 +432,168 @@ input:focus {
 }
 
 .linkedin-icon {
-    width: 20px;
-    height: 20px;
-    margin-right: 5px;
-    background-color: #0077B5;
-    border-radius: 3px;
+    width: 22px;
+    height: 22px;
+    margin-right: 6px;
+    background: linear-gradient(45deg, #0077B5, #00A0DC);
+    border-radius: 4px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     color: white;
     font-weight: bold;
     font-size: 12px;
+    box-shadow: 0 2px 5px rgba(0, 119, 181, 0.3);
 }
 
 .copyright {
     color: #666;
+    font-size: 12px;
 }
 
-/* Estilo para o timer */
-#timerDisplay {
-    position: absolute;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #FFD700;
-    font-size: 18px;
-    font-weight: bold;
-    background-color: rgba(0,0,0,0.7);
-    padding: 10px 20px;
-    border-radius: 20px;
-    z-index: 1000;
-    display: none;
-}
-
-/* Esconde controles em desktop */
-@media (min-width: 768px) {
-    .mobile-controls {
-        display: none !important;
-    }
-}
-
-/* Mostra controles apenas em mobile */
-@media (max-width: 767px) {
-    .mobile-controls {
-        display: flex;
-    }
-    
+/* Responsivo */
+@media (max-width: 900px) {
     canvas {
-        margin-bottom: 100px;
+        max-width: 90vw;
+        max-height: 60vh;
     }
     
     .menu-container {
-        padding: 20px;
+        padding: 30px 40px;
+        min-width: 300px;
+    }
+}
+
+@media (max-width: 767px) {
+    .mobile-controls {
+        display: flex !important;
+    }
+    
+    canvas {
+        margin-bottom: 120px;
+        max-width: 95vw;
+        max-height: 50vh;
+    }
+    
+    .menu-container {
+        padding: 25px 30px;
         width: 90%;
+        max-width: 400px;
     }
     
     .game-title {
+        font-size: 32px;
+    }
+    
+    h2 {
         font-size: 28px;
     }
     
     .menu-btn {
         width: 100%;
-        max-width: 250px;
+        max-width: 280px;
+        font-size: 16px;
     }
     
     input {
         width: 100%;
-        max-width: 250px;
-    }
-    
-    canvas {
-        width: 100%;
-        height: auto;
+        max-width: 280px;
+        font-size: 16px;
     }
     
     .footer {
-        bottom: 100px; /* Ajusta posição para não sobrepor controles mobile */
+        bottom: 130px;
     }
     
     .footer-content {
         flex-direction: column;
-        gap: 5px;
+        gap: 8px;
+    }
+    
+    #scoreboard, #messages {
+        left: 10px;
+        max-width: calc(100vw - 40px);
+        font-size: 14px;
+    }
+    
+    #messages {
+        max-height: 80px;
+    }
+    
+    #timerDisplay {
+        font-size: 16px;
+        padding: 10px 20px;
+        top: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .game-title {
+        font-size: 26px;
+        letter-spacing: 1px;
+    }
+    
+    h2 {
+        font-size: 24px;
+    }
+    
+    .menu-container {
+        padding: 20px 25px;
+    }
+    
+    .menu-btn {
+        padding: 12px 25px;
+        font-size: 15px;
+    }
+    
+    input {
+        padding: 12px;
+        font-size: 15px;
+    }
+    
+    .control-direction {
+        grid-template-columns: repeat(3, 55px);
+        grid-template-rows: repeat(3, 55px);
+        gap: 6px;
+    }
+    
+    .control-direction .control-btn {
+        width: 45px;
+        height: 45px;
+        font-size: 20px;
+    }
+}
+
+/* Animações adicionais */
+@keyframes slideInFromBottom {
+    from {
+        transform: translateY(100px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.mobile-controls.active {
+    animation: slideInFromBottom 0.5s ease-out;
+}
+
+/* Estados especiais para o jogo */
+body.game-active {
+    overflow: visible;
+}
+
+body.game-active .footer {
+    display: none;
+}
+
+/* Melhorias de acessibilidade */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
     }
 }

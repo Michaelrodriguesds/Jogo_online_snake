@@ -1,41 +1,48 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Snake Multiplayer</title>
-<link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>">
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Snake Multiplayer</title>
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
   <canvas id="menuCanvas" width="800" height="600"></canvas>
 
+  <!-- Menu Principal -->
   <div id="menu" class="menu-container">
     <h1 class="game-title">SNAKE MULTIPLAYER</h1>
     <button id="soloBtn" class="menu-btn">Jogar Solo</button>
     <button id="multiBtn" class="menu-btn">Multiplayer</button>
   </div>
 
+  <!-- Menu Multiplayer -->
   <div id="multiMenu" class="menu-container">
     <h2>Multiplayer</h2>
-    <input id="nameInput" placeholder="Seu Nome">
+    <input id="nameInput" placeholder="Seu Nome" maxlength="15">
     <button id="createRoomBtn" class="menu-btn">Criar Sala</button>
-    <input id="pinInput" placeholder="PIN da Sala">
+    <input id="pinInput" placeholder="PIN da Sala" maxlength="4">
     <button id="joinRoomBtn" class="menu-btn">Entrar na Sala</button>
     <button id="backFromMulti" class="menu-btn back-btn">Voltar</button>
   </div>
 
+  <!-- Lobby -->
   <div id="lobby" class="menu-container">
     <h2>Lobby</h2>
     <div id="pinDisplay"></div>
     <div id="playersList"></div>
     <button id="readyBtn" class="menu-btn">Pronto</button>
     <button id="backFromLobby" class="menu-btn back-btn">Voltar</button>
-    <div id="scoreboard"></div>
-    <div id="messages"></div>
   </div>
 
+  <!-- Game Canvas -->
   <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <!-- Game UI -->
+  <div id="scoreboard"></div>
+  <div id="messages"></div>
 
   <!-- Controles Mobile -->
   <div id="mobileControls" class="mobile-controls">
@@ -57,9 +64,9 @@
   <!-- Footer -->
   <footer class="footer">
     <div class="footer-content">
-      <a href="https://www.linkedin.com/in/michael-rodrigues-4%C2%B0-b741a1104/" 
-         target="_blank" 
-         rel="noopener noreferrer" 
+      <a href="https://www.linkedin.com/in/michael-rodrigues-4%C2%B0-b741a1104/"
+         target="_blank"
+         rel="noopener noreferrer"
          class="linkedin-link">
         <span class="linkedin-icon">in</span>
         LinkedIn
