@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dicas & Suporte - Snake Multiplayer</title>
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: white;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            border: 2px solid #FFD700;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            color: #FFD700;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        .section {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .section h2 {
+            color: #FFD700;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #FFD700;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #00FF00;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #00FF00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .submit-btn {
+            background: linear-gradient(45deg, #00FF00, #00CC00);
+            border: none;
+            color: #000;
+            padding: 15px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 0, 0.3);
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: linear-gradient(45deg, #FF5555, #CC4444);
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin: 20px 0;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 85, 85, 0.3);
+        }
+
+        .tip-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .tip-card {
+            background: linear-gradient(45deg, rgba(0, 255, 0, 0.1), rgba(0, 200, 0, 0.1));
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #00FF00;
+        }
+
+        .tip-card h4 {
+            color: #00FF00;
+            margin-bottom: 10px;
+        }
+
+        .faq-item {
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .faq-question {
+            color: #FFD700;
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .success-message {
+            background: linear-gradient(45deg, rgba(0, 255, 0, 0.2), rgba(0, 200, 0, 0.2));
+            border: 2px solid #00FF00;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .section {
+                padding: 20px;
+            }
+
+            .tip-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header fade-in">
+            <h1>💡 Dicas & Suporte</h1>
+            <p>Precisa de ajuda ou tem sugestões? Estamos aqui para ajudar!</p>
+        </header>
+
+        <section class="section fade-in">
+            <h2>🚀 Dicas Avançadas</h2>
+            <div class="tip-grid">
+                <div class="tip-card">
+                    <h4>🎯 Técnica do Espiral</h4>
+                    <p>Quando perseguido, faça movimentos em espiral para confundir o oponente e criar oportunidades de escape.</p>
+                </div>
+                <div class="tip-card">
+                    <h4>⚡ Uso das Bordas</h4>
+                    <p>Use o wraparound das bordas para fazer ataques surpresa e escapar de situações difíceis.</p>
+                </div>
+                <div class="tip-card">
+                    <h4>🧠 Psicologia do Jogo</h4>
+                    <p>Observe os padrões de movimento dos outros jogadores para prever suas próximas ações.</p>
+                </div>
+                <div class="tip-card">
+                    <h4>⏰ Timing Perfeito</h4>
+                    <p>Nos primeiros 30 segundos, jogue mais agressivo. Depois, seja mais cauteloso conforme a velocidade aumenta.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section fade-in">
+            <h2>❓ Perguntas Frequentes</h2>
+            <div class="faq-item">
+                <div class="faq-question">Por que minha cobra não responde aos comandos?</div>
+                <p>Verifique se você não está tentando reverter instantaneamente (não é possível ir da direita diretamente para a esquerda). Também certifique-se de que sua conexão com a internet está estável.</p>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Como funciona o sistema de velocidade?</div>
+                <p>Sua cobra acelera automaticamente a cada 30 segundos de sobrevivência e também quando come comida. Isso torna o jogo progressivamente mais desafiador.</p>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Posso jogar no celular?</div>
+                <p>Sim! O jogo é totalmente otimizado para mobile com controles touch, botões direcionais e gestos de swipe na tela.</p>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Por que não consigo entrar em uma sala?</div>
+                <p>Verifique se o PIN está correto (4 dígitos) e se a sala não está cheia (máximo 4 jogadores). Também certifique-se de que sua conexão está estável.</p>
+            </div>
+        </section>
+
+        <section class="section fade-in">
+            <h2>📝 Enviar Feedback</h2>
+            <div class="success-message" id="successMessage">
+                ✅ Obrigado pelo seu feedback! Sua mensagem foi enviada com sucesso.
+            </div>
+            <form id="feedbackForm">
+                <div class="form-group">
+                    <label for="feedbackType">Tipo de Feedback:</label>
+                    <select id="feedbackType" required>
+                        <option value="">Selecione uma opção</option>
+                        <option value="bug">🐛 Reportar Bug</option>
+                        <option value="suggestion">💡 Sugestão de Melhoria</option>
+                        <option value="feature">⭐ Pedido de Nova Funcionalidade</option>
+                        <option value="support">❓ Dúvida/Suporte</option>
+                        <option value="compliment">👏 Elogio</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="playerName">Seu Nome (opcional):</label>
+                    <input type="text" id="playerName" placeholder="Digite seu nome">
+                </div>
+                <div class="form-group">
+                    <label for="message">Sua Mensagem:</label>
+                    <textarea id="message" placeholder="Descreva detalhadamente seu feedback, bug ou sugestão..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email para Resposta (opcional):</label>
+                    <input type="email" id="email" placeholder="seu@email.com">
+                </div>
+                <button type="submit" class="submit-btn">📤 Enviar Feedback</button>
+            </form>
+        </section>
+
+        <section class="section fade-in">
+            <h2>🔧 Solução de Problemas</h2>
+            <div class="tip-grid">
+                <div class="tip-card">
+                    <h4>Lag ou Atraso</h4>
+                    <p>• Verifique sua conexão com a internet<br>
+                    • Feche outros aplicativos que usam internet<br>
+                    • Tente recarregar a página</p>
+                </div>
+                <div class="tip-card">
+                    <h4>Controles não Funcionam</h4>
+                    <p>• Certifique-se de que o jogo está focado<br>
+                    • No mobile, toque na tela primeiro<br>
+                    • Recarregue a página se necessário</p>
+                </div>
+                <div class="tip-card">
+                    <h4>Não Consegue Conectar</h4>
+                    <p>• Verifique se o servidor está online<br>
+                    • Desabilite antivírus/firewall temporariamente<br>
+                    • Tente usar uma rede diferente</p>
+                </div>
+                <div class="tip-card">
+                    <h4>Chat não Funciona</h4>
+                    <p>• Defina seu nome primeiro<br>
+                    • Verifique conexão WebSocket<br>
+                    • Aguarde alguns segundos e tente novamente</p>
+                </div>
+            </div>
+        </section>
+
+        <a href="index.html" class="back-btn">🏠 Voltar ao Menu Principal</a>
+    </div>
+
+    <script>
+        document.getElementById('feedbackForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Simular envio do feedback
+            const successMessage = document.getElementById('successMessage');
+            successMessage.style.display = 'block';
+            
+            // Limpar o formulário
+            this.reset();
+            
+            // Rolar para a mensagem de sucesso
+            successMessage.scrollIntoView({ behavior: 'smooth' });
+            
+            // Esconder mensagem após 5 segundos
+            setTimeout(() => {
+                successMessage.style.display = 'none';
+            }, 5000);
+        });
+    </script>
+</body>
+</html>

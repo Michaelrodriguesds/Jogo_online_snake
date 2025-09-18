@@ -327,8 +327,8 @@ function showMessageModal() {
             <button class="quick-msg" data-msg="Nooo!">😱 Nooo!</button>
         </div>
         <div style="margin-bottom: 15px;">
-            <input type="text" id="customMsg" placeholder="Sua mensagem (máx 15 chars)" maxlength="15" 
-                   style="width: 100%; padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.1); border: 2px solid #00FF00; color: white; text-align: center;">
+            <input type="text" id="customMsg" placeholder="Sua mensagem (máx 20 chars)" maxlength="20" 
+                   style="width: 100%; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.1); border: 2px solid #00FF00; color: white; text-align: center; font-size: 16px; font-family: Arial, sans-serif;">
         </div>
         <div>
             <button id="sendCustom" style="background: #00FF00; border: none; color: #000; padding: 10px 20px; border-radius: 10px; margin-right: 10px; font-weight: bold; cursor: pointer;">📤 Enviar</button>
@@ -428,69 +428,68 @@ function sendMove(dx, dy) {
 // --- Configurar controles mobile ---
 function setupMobileControls() {
     if (isMobileDevice()) {
+        // Garantir que controles sejam visíveis
+        mobileControls.style.display = 'flex';
         mobileControls.classList.add('active');
         
         // Aumentar tamanho dos botões mobile
         const controlBtns = document.querySelectorAll('.control-btn');
         controlBtns.forEach(btn => {
-            btn.style.width = '70px';
-            btn.style.height = '70px';
-            btn.style.fontSize = '24px';
+            btn.style.width = '80px';
+            btn.style.height = '80px';
+            btn.style.fontSize = '28px';
             btn.style.fontWeight = 'bold';
+            btn.style.background = 'linear-gradient(45deg, rgba(0, 255, 0, 0.9), rgba(0, 200, 0, 0.9))';
+            btn.style.border = '3px solid #00FF00';
+            btn.style.boxShadow = '0 0 15px rgba(0, 255, 0, 0.5)';
         });
         
         // Ajustar grid para botões maiores
         const controlDirection = document.querySelector('.control-direction');
         if (controlDirection) {
-            controlDirection.style.gridTemplateColumns = 'repeat(3, 70px)';
-            controlDirection.style.gridTemplateRows = 'repeat(3, 70px)';
-            controlDirection.style.gap = '10px';
+            controlDirection.style.gridTemplateColumns = 'repeat(3, 80px)';
+            controlDirection.style.gridTemplateRows = 'repeat(3, 80px)';
+            controlDirection.style.gap = '15px';
         }
         
-        upBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            sendMove(0, -GRID_SIZE);
-            upBtn.style.backgroundColor = '#00CC00';
-        });
-        
-        downBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            sendMove(0, GRID_SIZE);
-            downBtn.style.backgroundColor = '#00CC00';
-        });
-        
-        leftBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            sendMove(-GRID_SIZE, 0);
-            leftBtn.style.backgroundColor = '#00CC00';
-        });
-        
-        rightBtn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            sendMove(GRID_SIZE, 0);
-            rightBtn.style.backgroundColor = '#00CC00';
-        });
-        
-        [upBtn, downBtn, leftBtn, rightBtn].forEach(btn => {
+        // Event listeners com prevenção de bugs
+        const addMobileEvent = (btn, dx, dy) => {
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                sendMove(dx, dy);
+                btn.style.background = 'linear-gradient(45deg, #00FF00, #00CC00)';
+                btn.style.transform = 'scale(0.95)';
+            }, { passive: false });
+            
             btn.addEventListener('touchend', (e) => {
                 e.preventDefault();
-                btn.style.backgroundColor = 'rgba(0, 255, 0, 0.7)';
-            });
+                e.stopPropagation();
+                btn.style.background = 'linear-gradient(45deg, rgba(0, 255, 0, 0.9), rgba(0, 200, 0, 0.9))';
+                btn.style.transform = 'scale(1)';
+            }, { passive: false });
+            
             btn.addEventListener('touchcancel', (e) => {
                 e.preventDefault();
-                btn.style.backgroundColor = 'rgba(0, 255, 0, 0.7)';
-            });
-        });
+                btn.style.background = 'linear-gradient(45deg, rgba(0, 255, 0, 0.9), rgba(0, 200, 0, 0.9))';
+                btn.style.transform = 'scale(1)';
+            }, { passive: false });
+        };
+        
+        addMobileEvent(upBtn, 0, -GRID_SIZE);
+        addMobileEvent(downBtn, 0, GRID_SIZE);
+        addMobileEvent(leftBtn, -GRID_SIZE, 0);
+        addMobileEvent(rightBtn, GRID_SIZE, 0);
     }
 }
 
-// --- Suporte a Swipe Gestures ---
+// --- Suporte a Swipe Gestures + Controle por Toque na Tela ---
 function setupSwipeControls() {
     if (!isMobileDevice()) return;
     
     let touchStartX = 0;
     let touchStartY = 0;
-    const minSwipeDistance = 30;
+    const minSwipeDistance = 50; // Aumentado para evitar toques acidentais
     
     canvas.addEventListener('touchstart', (e) => {
         touchStartX = e.touches[0].clientX;
@@ -509,26 +508,64 @@ function setupSwipeControls() {
         const diffX = touchEndX - touchStartX;
         const diffY = touchEndY - touchStartY;
         
+        // Verificar se o swipe é forte o suficiente
+        const swipeLength = Math.sqrt(diffX * diffX + diffY * diffY);
+        if (swipeLength < minSwipeDistance) return;
+        
+        // Determinar direção baseada no maior componente
         if (Math.abs(diffX) > Math.abs(diffY)) {
-            if (Math.abs(diffX) > minSwipeDistance) {
-                if (diffX > 0) {
-                    sendMove(GRID_SIZE, 0);
-                } else {
-                    sendMove(-GRID_SIZE, 0);
-                }
+            // Movimento horizontal
+            if (diffX > 0) {
+                sendMove(GRID_SIZE, 0); // Direita
+                showSwipeFeedback('➡️');
+            } else {
+                sendMove(-GRID_SIZE, 0); // Esquerda
+                showSwipeFeedback('⬅️');
             }
         } else {
-            if (Math.abs(diffY) > minSwipeDistance) {
-                if (diffY > 0) {
-                    sendMove(0, GRID_SIZE);
-                } else {
-                    sendMove(0, -GRID_SIZE);
-                }
+            // Movimento vertical
+            if (diffY > 0) {
+                sendMove(0, GRID_SIZE); // Baixo
+                showSwipeFeedback('⬇️');
+            } else {
+                sendMove(0, -GRID_SIZE); // Cima
+                showSwipeFeedback('⬆️');
             }
         }
         
         e.preventDefault();
     }, { passive: false });
+}
+
+function showSwipeFeedback(direction) {
+    const feedback = document.createElement('div');
+    feedback.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 40px;
+        z-index: 999;
+        pointer-events: none;
+        animation: swipeFade 0.5s ease-out;
+    `;
+    feedback.innerHTML = direction;
+    document.body.appendChild(feedback);
+    
+    setTimeout(() => feedback.remove(), 500);
+    
+    // Adicionar CSS da animação se não existir
+    if (!document.getElementById('swipeStyles')) {
+        const style = document.createElement('style');
+        style.id = 'swipeStyles';
+        style.textContent = `
+            @keyframes swipeFade {
+                0% { opacity: 1; transform: translate(-50%, -50%) scale(1.5); }
+                100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
 }
 
 // --- Chat Functions ---
@@ -808,9 +845,11 @@ function showMenu() {
     hideElement(scoreboard);
     hideElement(messagesDiv);
     
-    // Mostrar botão de chat global se tiver nome
-    if (playerName && globalChatDiv) {
-        createGlobalChatButton();
+    // SEMPRE mostrar chat global na tela principal
+    createGlobalChatUI();
+    createGlobalChatButton();
+    if (globalChatDiv) {
+        globalChatDiv.style.display = 'flex';
     }
     
     // Limpar estado
@@ -914,10 +953,18 @@ function animateMenuSnake() {
 
 // --- Event Listeners dos Botões ---
 soloBtn.onclick = () => {
-    playerName = prompt("Digite seu nome:", "Player") || "Player";
+    const name = prompt("Digite seu nome:", "Player");
+    if (name === null) return; // Cancelou - não iniciar jogo
+    
+    playerName = name || "Player";
     hideElement(menuDiv);
     hideElement(menuCanvas);
     if (globalChatDiv) globalChatDiv.style.display = 'none';
+    
+    // Remover botão de chat global
+    const chatBtn = document.getElementById('globalChatBtn');
+    if (chatBtn) chatBtn.remove();
+    
     startSolo(playerName);
 };
 

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avaliações - Snake Multiplayer</title>
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐍</text></svg>">
+</head>
+<body style="font-family: Arial; background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%); color: white; padding: 20px;">
+    <div style="max-width: 800px; margin: 0 auto;">
+        <h1 style="text-align: center; color: #FFD700;">⭐ Avaliações do Snake Multiplayer</h1>
+        <div style="text-align: center; margin: 40px 0;">
+            <h2>Avalie nosso jogo:</h2>
+            <div id="starRating" style="font-size: 2em; margin: 20px 0;">
+                <span onclick="rate(1)">☆</span>
+                <span onclick="rate(2)">☆</span>
+                <span onclick="rate(3)">☆</span>
+                <span onclick="rate(4)">☆</span>
+                <span onclick="rate(5)">☆</span>
+            </div>
+            <textarea placeholder="Deixe seu comentário..." style="width: 100%; padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.1); border: 2px solid #00FF00; color: white; min-height: 100px;"></textarea>
+            <br><br>
+            <button onclick="submitReview()" style="background: linear-gradient(45deg, #00FF00, #00CC00); border: none; color: #000; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer;">📤 Enviar Avaliação</button>
+        </div>
+        <a href="index.html" style="display: inline-block; background: linear-gradient(45deg, #FF5555, #CC4444); color: white; padding: 15px 30px; text-decoration: none; border-radius: 10px; font-weight: bold;">🏠 Voltar</a>
+    </div>
+    <script>
+        let currentRating = 0;
+        function rate(stars) {
+            currentRating = stars;
+            const spans = document.querySelectorAll('#starRating span');
+            spans.forEach((span, index) => {
+                span.innerHTML = index < stars ? '★' : '☆';
+                span.style.color = index < stars ? '#FFD700' : '#666';
+            });
+        }
+        function submitReview() {
+            if (currentRating > 0) {
+                alert('Obrigado pela sua avaliação de ' + currentRating + ' estrelas!');
+            } else {
+                alert('Por favor, selecione uma classificação.');
+            }
+        }
+    </script>
+</body>
+</html>

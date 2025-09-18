@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Snake Multiplayer - Jogo</title>
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            touch-action: manipulation;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 15px;
+            background-color: #222;
+            box-shadow: 
+                0 0 30px rgba(0, 255, 0, 0.3),
+                inset 0 0 20px rgba(0, 0, 0, 0.5);
+            border: 3px solid #00FF00;
+        }
+
+        #gameCanvas {
+            position: relative;
+            z-index: 10;
+        }
+
+        #menuCanvas {
+            border: 2px solid rgba(0, 255, 0, 0.5);
+            background: linear-gradient(45deg, #1a1a2e, #16213e);
+        }
+
+        .menu-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            text-align: center;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 40px 60px;
+            border-radius: 20px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 3px solid #00FF00;
+            box-shadow: 
+                0 0 40px rgba(0, 255, 0, 0.2),
+                inset 0 0 30px rgba(0, 0, 0, 0.3);
+            min-width: 350px;
+            z-index: 100;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -60%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        .game-title {
+            font-size: 42px;
+            color: #00FF00;
+            text-shadow: 
+                2px 2px 4px #000,
+                0 0 20px rgba(0, 255, 0, 0.5);
+            margin-bottom: 25px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                text-shadow: 
+                    2px 2px 4px #000,
+                    0 0 20px rgba(0, 255, 0, 0.5);
+            }
+            50% {
+                text-shadow: 
+                    2px 2px 4px #000,
+                    0 0 30px rgba(0, 255, 0, 0.8),
+                    0 0 40px rgba(0, 255, 0, 0.3);
+            }
+        }
+
+        h2 {
+            color: #00FF00;
+            margin-bottom: 20px;
+            font-size: 32px;
+            text-shadow: 2px 2px 4px #000;
+        }
+
+        .menu-btn {
+            padding: 15px 35px;
+            font-size: 18px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            background: linear-gradient(45deg, #00FF00, #00CC00);
+            color: #000;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            width: 220px;
+            box-shadow: 
+                0 4px 15px rgba(0, 255, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menu-btn:hover {
+            background: linear-gradient(45deg, #00CC00, #00AA00);
+            transform: translateY(-2px);
+            box-shadow: 
+                0 6px 20px rgba(0, 255, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .menu-btn:disabled {
+            background: linear-gradient(45deg, #666, #555);
+            color: #999;
+            cursor: not-allowed;
+            opacity: 0.7;
+            transform: none;
+        }
+
+        .back-btn {
+            background: linear-gradient(45deg, #FF5555, #CC4444);
+            color: #fff;
+            box-shadow: 
+                0 4px 15px rgba(255, 85, 85, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .back-btn:hover {
+            background: linear-gradient(45deg, #CC4444, #AA3333);
+            box-shadow: 
+                0 6px 20px rgba(255, 85, 85, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        input {
+            padding: 15px;
+            font-size: 16px;
+            border-radius: 10px;
+            border: 2px solid #00FF00;
+            text-align: center;
+            background: rgba(34, 34, 34, 0.8);
+            backdrop-filter: blur(10px);
+            color: #FFF;
+            width: 220px;
+            transition: all 0.3s ease;
+            box-shadow: 
+                inset 0 2px 5px rgba(0, 0, 0, 0.3),
+                0 0 10px rgba(0, 255, 0, 0.1);
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #00CC00;
+            box-shadow: 
+                inset 0 2px 5px rgba(0, 0, 0, 0.3),
+                0 0 20px rgba(0, 255, 0, 0.4);
+            background: rgba(34, 34, 34, 0.9);
+        }
+
+        #scoreboard, #messages {
+            position: fixed;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            border-radius: 15px;
+            border: 2px solid rgba(0, 255, 0, 0.3);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            z-index: 50;
+            max-width: 300px;
+            display: none;
+        }
+
+        #scoreboard {
+            top: 20px;
+            color: #FFD700;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #messages {
+            top: 120px;
+            max-height: 120px;
+            overflow-y: auto;
+            font-size: 14px;
+            color: #AAAAAA;
+            line-height: 1.4;
+        }
+
+        #pinDisplay {
+            font-size: 24px;
+            color: #00FF00;
+            margin-bottom: 20px;
+            font-weight: bold;
+            text-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+            background: rgba(0, 255, 0, 0.1);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 2px solid #00FF00;
+        }
+
+        #playersList {
+            margin: 20px 0;
+            font-size: 16px;
+            min-height: 100px;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+        }
+
+        .player-item {
+            margin: 8px 0;
+            padding: 12px 15px;
+            background: rgba(0, 255, 0, 0.15);
+            border-radius: 8px;
+            border-left: 4px solid #00FF00;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .player-item:hover {
+            background: rgba(0, 255, 0, 0.25);
+            transform: translateX(5px);
+        }
+
+        #multiMenu, #lobby, #gameCanvas {
+            display: none;
+        }
+
+        .mobile-controls {
+            display: none;
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+        }
+
+        .control-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, rgba(0, 255, 0, 0.9), rgba(0, 200, 0, 0.9));
+            border: 3px solid #00CC00;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: white;
+            font-weight: bold;
+            user-select: none;
+            touch-action: manipulation;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin: 5px;
+        }
+
+        .control-btn:active {
+            background: linear-gradient(45deg, #00CC00, #00AA00);
+            transform: scale(0.95);
+        }
+
+        .control-direction {
+            display: grid;
+            grid-template-columns: repeat(3, 80px);
+            grid-template-rows: repeat(3, 80px);
+            gap: 15px;
+        }
+
+        #timerDisplay {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #FFD700;
+            font-size: 20px;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 15px 25px;
+            border-radius: 25px;
+            border: 2px solid #FFD700;
+            box-shadow: 
+                0 0 30px rgba(255, 215, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+            display: none;
+        }
+
+        .status-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 1001;
+        }
+
+        .status-connected { background: #00CC00; color: #000; }
+        .status-connecting { background: #FFAA00; color: #000; }
+        .status-disconnected { background: #FF5555; color: #FFF; }
+
+        @media (max-width: 767px) {
+            .mobile-controls {
+                display: flex !important;
+            }
+            
+            canvas {
+                margin-bottom: 120px;
+                max-width: 95vw;
+                max-height: 50vh;
+            }
+            
+            .menu-container {
+                padding: 25px 30px;
+                width: 90%;
+                max-width: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+  <canvas id="menuCanvas" width="800" height="600"></canvas>
+
+  <!-- Menu Principal -->
+  <div id="menu" class="menu-container">
+    <h1 class="game-title">SNAKE MULTIPLAYER</h1>
+    <button id="soloBtn" class="menu-btn">Jogar Solo</button>
+    <button id="multiBtn" class="menu-btn">Multiplayer</button>
+    <button id="backToHomeBtn" class="menu-btn back-btn">← Página Principal</button>
+  </div>
+
+  <!-- Menu Multiplayer -->
+  <div id="multiMenu" class="menu-container">
+    <h2>Multiplayer</h2>
+    <input id="nameInput" placeholder="Seu Nome" maxlength="15">
+    <button id="createRoomBtn" class="menu-btn">Criar Sala</button>
+    <input id="pinInput" placeholder="PIN da Sala" maxlength="4">
+    <button id="joinRoomBtn" class="menu-btn">Entrar na Sala</button>
+    <button id="backFromMulti" class="menu-btn back-btn">Voltar</button>
+  </div>
+
+  <!-- Lobby -->
+  <div id="lobby" class="menu-container">
+    <h2>Lobby</h2>
+    <div id="pinDisplay"></div>
+    <div id="timerDisplay"></div>
+    <div id="playersList"></div>
+    <button id="readyBtn" class="menu-btn">Pronto</button>
+    <button id="backFromLobby" class="menu-btn back-btn">Voltar</button>
+  </div>
+
+  <!-- Game Canvas -->
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <!-- Game UI -->
+  <div id="scoreboard"></div>
+  <div id="messages"></div>
+  <div id="statusIndicator" class="status-indicator status-disconnected">Desconectado</div>
+
+  <!-- Controles Mobile -->
+  <div id="mobileControls" class="mobile-controls">
+    <div class="control-direction">
+      <div class="control-btn" style="visibility: hidden;"></div>
+      <button class="control-btn" id="upBtn">↑</button>
+      <div class="control-btn" style="visibility: hidden;"></div>
+      
+      <button class="control-btn" id="leftBtn">←</button>
+      <div class="control-btn" style="visibility: hidden;"></div>
+      <button class="control-btn" id="rightBtn">→</button>
+      
+      <div class="control-btn" style="visibility: hidden;"></div>
+      <button class="control-btn" id="downBtn">↓</button>
+      <div class="control-btn" style="visibility: hidden;"></div>
+    </div>
+  </div>
+
+  <script>
+    // === VARIÁVEIS GLOBAIS ===
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const menuCanvas = document.getElementById('menuCanvas');
+    const menuCtx = menuCanvas.getContext('2d');
+
+    const menuDiv = document.getElementById('menu');
+    const multiMenuDiv = document.getElementById('multiMenu');
+    const lobbyDiv = document.getElementById('lobby');
+    const statusIndicator = document.getElementById('statusIndicator');
+
+    const soloBtn = document.getElementById('soloBtn');
+    const multiBtn = document.getElementById('multiBtn');
+    const createRoomBtn = document.getElementById('createRoomBtn');
+    const joinRoomBtn = document.getElementById('joinRoomBtn');
+    const readyBtn = document.getElementById('readyBtn');
+    const backToHomeBtn = document.getElementById('backToHomeBtn');
+    const backFromMulti = document.getElementById('backFromMulti');
+    const backFromLobby = document.getElementById('backFromLobby');
+
+    const pinInput = document.getElementById('pinInput');
+    const nameInput = document.getElementById('nameInput');
+    const pinDisplay = document.getElementById('pinDisplay');
+    const playersList = document.getElementById('playersList');
+    const scoreboard = document.getElementById('scoreboard');
+    const messagesDiv = document.getElementById('messages');
+    const timerDisplay = document.getElementById('timerDisplay');
+
+    // Controles mobile
+    const mobileControls = document.getElementById('mobileControls');
+    const upBtn = document.getElementById('upBtn');
+    const leftBtn = document.getElementById('leftBtn');
+    const rightBtn = document.getElementById('rightBtn');
+    const downBtn = document.getElementById('downBtn');
+
+    let ws = null;
+    let playerId = null;
+    let gameState = null;
+    let playerName = '';
+    let currentPIN = null;
+    let isGameRunning = false;
+    let timeRemaining = 0;
+    const GRID_SIZE = 20;
+
+    // Obter parâmetros da URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const gameMode = urlParams.get('mode');
+
+    // === UTILITÁRIOS ===
+    
+    const getWebSocketURL = () => {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return 'ws://localhost:8080';
+        } else {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            return `${protocol}//${window.location.host}`;
+        }
+    };
+
+    function isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    function generateTempPIN() {
+        return Math.floor(1000 + Math.random() * 9000).toString();
+    }
+
+    function updateStatus(status, text) {
+        statusIndicator.className = `status-indicator status-${status}`;
+        statusIndicator.textContent = text;
+    }
+
+    function showElement(element) {
+        if (element === menuDiv || element === multiMenuDiv || element === lobbyDiv) {
+            element.style.display = 'flex';
+        } else {
+            element.style.display = 'block';
+        }
+    }
+
+    function hideElement(element) {
+        element.style.display = 'none';
+    }
+
+    // === CONTROLES ===
+    
+    function sendMove(dx, dy) {
+        if (!ws || !isGameRunning) return;
+        
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({type: 'move', dx, dy}));
+        }
+    }
+
+    function setupMobileControls() {
+        if (isMobileDevice()) {
+            mobileControls.style.display = 'flex';
+            
+            const addMobileEvent = (btn, dx, dy) => {
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    sendMove(dx, dy);
+                }, { passive: false });
+            };
+            
+            addMobileEvent(upBtn, 0, -GRID_SIZE);
+            addMobileEvent(downBtn, 0, GRID_SIZE);
+            addMobileEvent(leftBtn, -GRID_SIZE, 0);
+            addMobileEvent(rightBtn, GRID_SIZE, 0);
+        }
+    }
+
+    document.addEventListener('keydown', e => {
+        if (!isGameRunning) return;
+        
+        let dx = 0, dy = 0;
+        
+        if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+            dy = -GRID_SIZE;
+        } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+            dy = GRID_SIZE;
+        } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+            dx = -GRID_SIZE;
+        } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+            dx = GRID_SIZE;
+        } else if (e.key === 'Escape') {
+            window.location.href = 'index.html';
+            return;
+        } else {
+            return;
+        }
+        
+        e.preventDefault();
+        sendMove(dx, dy);
+    });
+
+    // === RENDERING ===
+    
+    function drawGame() {
+        if (!gameState || !ctx) return;
+
+        // Limpar canvas
+        ctx.fillStyle = '#222';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Grid sutil
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.1)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= canvas.width; x += GRID_SIZE) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, canvas.height);
+            ctx.stroke();
+        }
+        for (let y = 0; y <= canvas.height; y += GRID_SIZE) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.stroke();
+        }
+
+        // Desenhar comida
+        if (gameState.food) {
+            ctx.fillStyle = '#FFD700';
+            ctx.shadowColor = '#FFD700';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(gameState.food.x, gameState.food.y, GRID_SIZE - 2, GRID_SIZE - 2);
+            ctx.shadowBlur = 0;
+            
+            // Borda da comida
+            ctx.strokeStyle = '#FF5555';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(gameState.food.x, gameState.food.y, GRID_SIZE, GRID_SIZE);
+        }
+
+        // Desenhar cobras - COMPATÍVEL COM SEU SERVIDOR
+        if (gameState.snakes) {
+            Object.entries(gameState.snakes).forEach(([id, snake]) => {
+                if (!snake.alive || !snake.body || snake.body.length === 0) return;
+                
+                const color = snake.color || '#00FF00';
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 5;
+
+                snake.body.forEach((segment, index) => {
+                    if (index === 0) {
+                        // Cabeça da cobra
+                        ctx.fillRect(segment.x + 1, segment.y + 1, GRID_SIZE - 2, GRID_SIZE - 2);
+                        
+                        // Borda da cabeça
+                        ctx.strokeStyle = '#FFFFFF';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(segment.x, segment.y, GRID_SIZE, GRID_SIZE);
+                        
+                        // Olhos baseados na direção
+                        ctx.fillStyle = '#000000';
+                        if (snake.dx > 0) {
+                            ctx.fillRect(segment.x + 13, segment.y + 4, 4, 4);
+                            ctx.fillRect(segment.x + 13, segment.y + 12, 4, 4);
+                        } else if (snake.dx < 0) {
+                            ctx.fillRect(segment.x + 3, segment.y + 4, 4, 4);
+                            ctx.fillRect(segment.x + 3, segment.y + 12, 4, 4);
+                        } else if (snake.dy > 0) {
+                            ctx.fillRect(segment.x + 4, segment.y + 13, 4, 4);
+                            ctx.fillRect(segment.x + 12, segment.y + 13, 4, 4);
+                        } else {
+                            ctx.fillRect(segment.x + 4, segment.y + 3, 4, 4);
+                            ctx.fillRect(segment.x + 12, segment.y + 3, 4, 4);
+                        }
+                        ctx.fillStyle = color;
+                    } else {
+                        // Corpo da cobra
+                        ctx.fillRect(segment.x + 2, segment.y + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+                    }
+                });
+                
+                ctx.shadowBlur = 0;
+
+                // Nome da cobra
+                const head = snake.body[0];
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+                
+                let displayText = snake.name;
+                
+                // Mensagem temporária se existir
+                if (snake.tempMessage && 
+                    Date.now() - snake.tempMessage.timestamp < snake.tempMessage.duration) {
+                    displayText = snake.tempMessage.text;
+                    ctx.fillStyle = '#FFD700';
+                    
+                    // Fundo para mensagem
+                    const textWidth = ctx.measureText(displayText).width;
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                    ctx.fillRect(head.x + GRID_SIZE/2 - textWidth/2 - 5, head.y - 20, textWidth + 10, 18);
+                    ctx.fillStyle = '#FFD700';
+                }
+                
+                ctx.strokeText(displayText, head.x + GRID_SIZE/2, head.y - 8);
+                ctx.fillText(displayText, head.x + GRID_SIZE/2, head.y - 8);
+            });
+        }
+
+        // Mensagens temporárias
+        if (gameState.temporaryMessages && gameState.temporaryMessages.length > 0) {
+            const msg = gameState.temporaryMessages[gameState.temporaryMessages.length - 1];
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            const textWidth = ctx.measureText(msg.text).width;
+            ctx.fillRect(canvas.width/2 - textWidth/2 - 15, 35, textWidth + 30, 35);
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(canvas.width/2 - textWidth/2 - 15, 35, textWidth + 30, 35);
+            ctx.fillStyle = '#FFD700';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+            ctx.strokeText(msg.text, canvas.width/2, 58);
+            ctx.fillText(msg.text, canvas.width/2, 58);
+        }
+    }
+
+    function updateScoreboard() {
+        if (!gameState || !gameState.snakes) {
+            scoreboard.style.display = 'none';
+            return;
+        }
+
+        const players = Object.entries(gameState.snakes)
+            .filter(([id, snake]) => snake.alive)
+            .map(([id, snake]) => ({
+                name: snake.name || 'Player',
+                score: snake.body ? snake.body.length : 0
+            }))
+            .sort((a, b) => b.score - a.score);
+
+        scoreboard.innerHTML = `
+            <h3 style="color: #00FF00; margin-bottom: 10px;">🏆 PLACAR</h3>
+            ${players.map((player, index) => `
+                <div style="margin: 5px 0; padding: 5px;">
+                    ${index + 1}. ${player.name}: ${player.score} 🐍
+                </div>
+            `).join('')}
+            <div style="margin-top: 10px; font-size: 12px; color: #888;">
+                Vivos: ${players.length}
+            </div>
+        `;
+        
+        scoreboard.style.display = 'block';
+    }
+
+    // === ANIMAÇÃO MENU ===
+    
+    let snakeX = 0, snakeY = 300;
+    let animationRunning = false;
+
+    function animateMenuSnake() {
+        if (menuDiv.style.display === 'flex' && !animationRunning) {
+            animationRunning = true;
+            
+            function animate() {
+                if (menuDiv.style.display !== 'flex') {
+                    menuCtx.clearRect(0, 0, menuCanvas.width, menuCanvas.height);
+                    animationRunning = false;
+                    return;
+                }
+                
+                menuCtx.clearRect(0, 0, menuCanvas.width, menuCanvas.height);
+                menuCtx.fillStyle = "#00FF00";
+                
+                for (let i = 0; i < 8; i++) {
+                    const segmentX = snakeX - i * 25;
+                    const segmentY = snakeY;
+                    
+                    if (segmentX > -50 && segmentX < menuCanvas.width + 50) {
+                        menuCtx.fillRect(segmentX, segmentY, 20, 20);
+                        
+                        if (i === 0) {
+                            menuCtx.fillStyle = "#000000";
+                            menuCtx.fillRect(segmentX + 15, segmentY + 5, 3, 3);
+                            menuCtx.fillRect(segmentX + 15, segmentY + 12, 3, 3);
+                            menuCtx.fillStyle = "#00FF00";
+                        }
+                    }
+                }
+                
+                snakeX += 2;
+                if (snakeX > menuCanvas.width + 200) {
+                    snakeX = -200;
+                }
+                
+                requestAnimationFrame(animate);
+            }
+            animate();
+        }
+    }
+
+    // === EVENT LISTENERS ===
+    
+    soloBtn.onclick = () => {
+        const gameName = prompt("Nome para usar no jogo:", "Player");
+        if (gameName === null) return;
+        
+        playerName = gameName || "Player";
+        hideElement(menuDiv);
+        hideElement(menuCanvas);
+        startSolo(playerName);
+    };
+
+    multiBtn.onclick = () => {
+        hideElement(menuDiv);
+        hideElement(menuCanvas);
+        showElement(multiMenuDiv);
+        
+        const savedName = localStorage.getItem('snakePlayerName');
+        if (savedName) {
+            nameInput.value = savedName;
+        }
+    };
+
+    backToHomeBtn.onclick = () => {
+        window.location.href = 'index.html';
+    };
+
+    backFromMulti.onclick = () => {
+        hideElement(multiMenuDiv);
+        showElement(menuDiv);
+        showElement(menuCanvas);
+        if (ws) {
+            ws.close();
+            ws = null;
+        }
+        updateStatus('disconnected', 'Desconectado');
+        animateMenuSnake();
+    };
+
+    backFromLobby.onclick = () => {
+        hideElement(lobbyDiv);
+        showElement(multiMenuDiv);
+        if (ws) {
+            ws.close();
+            ws = null;
+        }
+        readyBtn.disabled = false;
+        readyBtn.innerText = "Pronto";
+        readyBtn.style.backgroundColor = "";
+        updateStatus('disconnected', 'Desconectado');
+    };
+
+    // CORRIGIDO: Usar 'join' em vez de 'create'
+    createRoomBtn.onclick = () => {
+        playerName = nameInput.value.trim() || "Player";
+        if (!playerName) {
+            alert("Por favor, digite um nome!");
+            return;
+        }
+        
+        localStorage.setItem('snakePlayerName', playerName);
+        updateStatus('connecting', 'Conectando...');
+        
+        const tempPin = generateTempPIN();
+        ws = new WebSocket(getWebSocketURL());
+        ws.onopen = () => { 
+            updateStatus('connected', 'Conectado');
+            // SERVIDOR ESPERA 'join' para criar/entrar
+            ws.send(JSON.stringify({type: 'join', pin: tempPin, name: playerName})); 
+        };
+        setupWS();
+    };
+
+    joinRoomBtn.onclick = () => {
+        playerName = nameInput.value.trim() || "Player";
+        currentPIN = pinInput.value.trim();
+        
+        if (!playerName) {
+            alert("Por favor, digite um nome!");
+            return;
+        }
+        
+        if (!currentPIN || currentPIN.length !== 4 || isNaN(currentPIN)) {
+            alert("Por favor, digite um PIN válido de 4 dígitos!");
+            return;
+        }
+        
+        localStorage.setItem('snakePlayerName', playerName);
+        updateStatus('connecting', 'Conectando...');
+        
+        ws = new WebSocket(getWebSocketURL());
+        ws.onopen = () => { 
+            updateStatus('connected', 'Conectado');
+            ws.send(JSON.stringify({type: 'join', pin: currentPIN, name: playerName})); 
+        };
+        setupWS();
+    };
+
+    readyBtn.onclick = () => { 
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({type: 'ready'}));
+            readyBtn.disabled = true;
+            readyBtn.innerText = "Pronto! ✓";
+            readyBtn.style.backgroundColor = "#00CC00";
+        }
+    };
+
+    // === WEBSOCKET ===
+    
+    function startSolo(name) {
+        updateStatus('connecting', 'Conectando...');
+        ws = new WebSocket(getWebSocketURL());
+        ws.onopen = () => { 
+            updateStatus('connected', 'Conectado');
+            ws.send(JSON.stringify({type: 'solo', name})); 
+        };
+        setupWS();
+    }
+
+    function setupWS() {
+        if (!ws) return;
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('Mensagem recebida:', data.type, data);
+                handleMessage(data);
+            } catch (e) {
+                console.error('Erro ao processar mensagem:', e);
+            }
+        };
+
+        ws.onerror = (error) => {
+            console.error('Erro WebSocket:', error);
+            updateStatus('disconnected', 'Erro de conexão');
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket fechado');
+            updateStatus('disconnected', 'Desconectado');
+            isGameRunning = false;
+            
+            if (gameStarted) {
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 3000);
+            }
+        };
+    }
+
+    function handleMessage(data) {
+        switch (data.type) {
+            case 'joined':
+                // Resposta do servidor quando entra/cria sala
+                playerId = data.playerId;
+                currentPIN = data.pin;
+                gameState = data.gameState;
+                
+                hideElement(multiMenuDiv);
+                showElement(lobbyDiv);
+                pinDisplay.textContent = `PIN da Sala: ${currentPIN}`;
+                
+                if (data.players) {
+                    updatePlayersList(data.players);
+                }
+                break;
+
+            case 'lobbyUpdate':
+                // Atualização do lobby
+                if (data.players) {
+                    updatePlayersList(data.players);
+                }
+                
+                // Verificar se o jogo começou
+                if (data.gameState && data.gameState.status === 'playing') {
+                    startGameUI();
+                }
+                break;
+
+            case 'timeUpdate':
+                // Timer do countdown
+                timeRemaining = data.timeRemaining;
+                updateTimerDisplay();
+                break;
+
+            case 'update':
+                // Estado do jogo durante partida
+                gameState = data.gameState;
+                
+                if (gameState.status === 'playing') {
+                    if (!isGameRunning) {
+                        startGameUI();
+                    }
+                    drawGame();
+                    updateScoreboard();
+                } else if (gameState.status === 'finished') {
+                    endGame();
+                }
+                break;
+
+            case 'gameEnd':
+                // Fim de jogo
+                gameState = data.gameState;
+                endGame();
+                break;
+
+            case 'error':
+                console.error('Erro do servidor:', data.message);
+                alert(data.message || 'Erro no servidor');
+                updateStatus('disconnected', 'Erro do servidor');
+                break;
+
+            default:
+                console.log('Mensagem não reconhecida:', data.type);
+        }
+    }
+
+    // === FUNÇÕES DE UI ===
+    
+    function startGameUI() {
+        console.log('Iniciando interface do jogo');
+        isGameRunning = true;
+        
+        hideElement(lobbyDiv);
+        hideElement(timerDisplay);
+        showElement(canvas);
+        showElement(scoreboard);
+        setupMobileControls();
+        
+        // ADICIONAR BOTÃO DE CHAT FLUTUANTE
+        createFloatingChatButton();
+        
+        // Iniciar loop de renderização
+        gameLoop();
+    }
+
+    // === SISTEMA DE CHAT EM TEMPO REAL ===
+    
+    function createFloatingChatButton() {
+        // Remover botão existente se houver
+        const existingBtn = document.getElementById('floatingChatBtn');
+        if (existingBtn) existingBtn.remove();
+        
+        const floatingBtn = document.createElement('button');
+        floatingBtn.id = 'floatingChatBtn';
+        floatingBtn.innerHTML = '💬';
+        floatingBtn.style.cssText = `
+            position: fixed;
+            top: ${isMobileDevice() ? '15px' : '20px'};
+            right: ${isMobileDevice() ? '15px' : '20px'};
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #00FF00, #00CC00);
+            border: 3px solid #FFF;
+            color: #000;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+            transition: all 0.3s ease;
+            display: block;
+        `;
+        
+        floatingBtn.onclick = () => showChatModal();
+        
+        floatingBtn.onmouseenter = () => {
+            floatingBtn.style.transform = 'scale(1.1)';
+        };
+        
+        floatingBtn.onmouseleave = () => {
+            floatingBtn.style.transform = 'scale(1)';
+        };
+        
+        document.body.appendChild(floatingBtn);
+    }
+
+    function showChatModal() {
+        // Remover modal existente
+        const existingModal = document.getElementById('chatModal');
+        if (existingModal) existingModal.remove();
+        
+        const modal = document.createElement('div');
+        modal.id = 'chatModal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        `;
+        
+        const content = document.createElement('div');
+        content.style.cssText = `
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid #00FF00;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 90%;
+            width: ${isMobileDevice() ? '90%' : '400px'};
+            text-align: center;
+        `;
+        
+        content.innerHTML = `
+            <h3 style="color: #00FF00; margin-bottom: 20px;">💬 Enviar Mensagem</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <button class="quick-msg-btn" data-msg="GG!">👍 GG!</button>
+                <button class="quick-msg-btn" data-msg="Nooo!">😱 Nooo!</button>
+                <button class="quick-msg-btn" data-msg="Nice!">🔥 Nice!</button>
+                <button class="quick-msg-btn" data-msg="Come on!">💪 Come on!</button>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <input type="text" id="customChatMsg" placeholder="Sua mensagem (máx 15 chars)" maxlength="15" 
+                       style="width: 100%; padding: 15px; border-radius: 10px; background: rgba(255,255,255,0.1); border: 2px solid #00FF00; color: white; text-align: center; font-size: 16px;">
+            </div>
+            
+            <div>
+                <button id="sendChatBtn" style="background: #00FF00; border: none; color: #000; padding: 12px 25px; border-radius: 10px; margin-right: 15px; font-weight: bold; cursor: pointer;">📤 Enviar</button>
+                <button id="cancelChatBtn" style="background: #FF5555; border: none; color: #FFF; padding: 12px 25px; border-radius: 10px; font-weight: bold; cursor: pointer;">❌ Cancelar</button>
+            </div>
+        `;
+        
+        // Estilo para botões rápidos
+        const style = document.createElement('style');
+        style.textContent = `
+            .quick-msg-btn {
+                background: linear-gradient(45deg, #FFD700, #FFA500);
+                border: none;
+                color: #000;
+                padding: 10px 15px;
+                border-radius: 15px;
+                margin: 5px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 14px;
+                transition: all 0.2s;
+            }
+            .quick-msg-btn:hover, .quick-msg-btn:active {
+                transform: scale(1.05);
+                background: linear-gradient(45deg, #FFA500, #FF8C00);
+            }
+        `;
+        document.head.appendChild(style);
+        
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+        
+        // Event listeners
+        document.querySelectorAll('.quick-msg-btn').forEach(btn => {
+            btn.onclick = () => {
+                const msg = btn.getAttribute('data-msg');
+                sendGameMessage(msg);
+                modal.remove();
+            };
+        });
+        
+        document.getElementById('sendChatBtn').onclick = () => {
+            const customInput = document.getElementById('customChatMsg');
+            const msg = customInput.value.trim();
+            if (msg) {
+                sendGameMessage(msg);
+                modal.remove();
+            }
+        };
+        
+        document.getElementById('cancelChatBtn').onclick = () => {
+            modal.remove();
+        };
+        
+        document.getElementById('customChatMsg').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('sendChatBtn').click();
+            }
+        });
+        
+        // Fechar clicando fora
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        };
+        
+        // Focar no input
+        setTimeout(() => {
+            document.getElementById('customChatMsg').focus();
+        }, 100);
+    }
+
+    function sendGameMessage(message) {
+        console.log('Enviando mensagem do jogo:', message);
+        
+        if (!ws || !isGameRunning) {
+            console.log('WebSocket ou jogo não disponível');
+            return;
+        }
+        
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'gameMessage',
+                message: message
+            }));
+            
+            console.log('Mensagem enviada via WebSocket');
+        } else {
+            console.log('WebSocket não está conectado');
+        }
+    }
+
+    function removeFloatingChatButton() {
+        const btn = document.getElementById('floatingChatBtn');
+        if (btn) btn.remove();
+        
+        const modal = document.getElementById('chatModal');
+        if (modal) modal.remove();
+    }
+
+    function updateTimerDisplay() {
+        if (timeRemaining > 0) {
+            timerDisplay.innerHTML = `⏰ Início em ${timeRemaining}s`;
+            timerDisplay.style.display = 'block';
+        } else {
+            timerDisplay.style.display = 'none';
+        }
+    }
+    
+    function updatePlayersList(players) {
+        if (!players) return;
+        
+        playersList.innerHTML = players.map((player, index) => `
+            <div class="player-item">
+                <span>${player.name}${player.isBot ? ' 🤖' : ''}${index === 0 ? ' 👑' : ''}</span>
+                <span style="color: ${player.ready ? '#00FF00' : '#FFAA00'};">
+                    ${player.ready ? '✓ Pronto' : '⏳ Aguardando'}
+                </span>
+            </div>
+        `).join('') || '<div style="color: #888;">Nenhum jogador</div>';
+    }
+
+    function endGame() {
+        isGameRunning = false;
+        console.log('Jogo terminou');
+        
+        // Remover botão de chat flutuante
+        removeFloatingChatButton();
+        
+        // Mostrar resultado final
+        setTimeout(() => {
+            drawGameOver();
+        }, 1000);
+        
+        // Voltar ao menu após 5 segundos
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 5000);
+    }
+
+    function drawGameOver() {
+        // Limpar e desenhar tela de fim de jogo
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#FFD700';
+        ctx.font = 'bold 36px Arial';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        
+        ctx.strokeText('FIM DE JOGO', canvas.width/2, canvas.height/2 - 50);
+        ctx.fillText('FIM DE JOGO', canvas.width/2, canvas.height/2 - 50);
+        
+        if (gameState && gameState.leaderboard && gameState.leaderboard.length > 0) {
+            const winner = gameState.leaderboard[0];
+            ctx.font = 'bold 24px Arial';
+            ctx.fillStyle = '#00FF00';
+            const winnerText = `Vencedor: ${winner.name}`;
+            ctx.strokeText(winnerText, canvas.width/2, canvas.height/2);
+            ctx.fillText(winnerText, canvas.width/2, canvas.height/2);
+            
+            ctx.font = 'bold 18px Arial';
+            ctx.fillStyle = '#FFF';
+            const scoreText = `Pontuação: ${winner.score}`;
+            ctx.strokeText(scoreText, canvas.width/2, canvas.height/2 + 40);
+            ctx.fillText(scoreText, canvas.width/2, canvas.height/2 + 40);
+        }
+        
+        ctx.font = 'bold 16px Arial';
+        ctx.fillStyle = '#AAA';
+        ctx.strokeText('Voltando ao menu...', canvas.width/2, canvas.height/2 + 100);
+        ctx.fillText('Voltando ao menu...', canvas.width/2, canvas.height/2 + 100);
+    }
+
+    // === INICIALIZAÇÃO ===
+    
+    function initializeGame() {
+        updateStatus('disconnected', 'Desconectado');
+        
+        if (gameMode === 'solo') {
+            const gameName = prompt("Nome para usar no jogo:", "Player");
+            if (gameName === null) {
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            playerName = gameName || "Player";
+            hideElement(menuDiv);
+            hideElement(menuCanvas);
+            startSolo(playerName);
+            
+        } else if (gameMode === 'multi') {
+            hideElement(menuDiv);
+            hideElement(menuCanvas);
+            showElement(multiMenuDiv);
+            
+            const savedName = localStorage.getItem('snakePlayerName');
+            if (savedName) {
+                nameInput.value = savedName;
+            }
+        } else {
+            showElement(menuDiv);
+            showElement(menuCanvas);
+            animateMenuSnake();
+        }
+    }
+
+    // === EVENT LISTENERS ADICIONAIS ===
+    
+    nameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            if (nameInput.value.trim()) {
+                createRoomBtn.click();
+            }
+        }
+    });
+
+    pinInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            if (pinInput.value.trim() && nameInput.value.trim()) {
+                joinRoomBtn.click();
+            }
+        }
+    });
+
+    // Limitar PIN apenas para números
+    pinInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+    });
+
+    // Game loop
+    function gameLoop() {
+        if (isGameRunning && gameState) {
+            drawGame();
+            updateScoreboard();
+            requestAnimationFrame(gameLoop);
+        }
+    }
+
+    // Inicializar
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeGame();
+    });
+
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+        if (ws) {
+            ws.close();
+        }
+    });
+
+  </script>
+</body>
+</html>
