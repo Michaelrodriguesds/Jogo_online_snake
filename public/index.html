@@ -146,10 +146,16 @@
             background: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
             border-left: 4px solid #00FF00;
+            animation: messageSlide 0.3s ease-out;
         }
 
         .chat-message strong {
             color: #FFD700;
+        }
+
+        @keyframes messageSlide {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
         }
 
         .chat-input-group {
@@ -166,6 +172,10 @@
             color: white;
             font-size: 14px;
             transition: all 0.3s ease;
+        }
+
+        .chat-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
         }
 
         .chat-input:focus {
@@ -189,6 +199,20 @@
             transform: scale(1.05);
             box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
         }
+
+        .connection-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-connected { background: #00CC00; color: #000; }
+        .status-connecting { background: #FFAA00; color: #000; }
+        .status-disconnected { background: #FF5555; color: #FFF; }
 
         .nav-links {
             display: grid;
@@ -294,6 +318,7 @@
 </head>
 <body>
     <header class="header fade-in">
+        <div class="connection-status status-disconnected" id="connectionStatus">Offline</div>
         <h1 class="game-title">🐍 SNAKE MULTIPLAYER</h1>
         <p class="game-subtitle">Jogue online com amigos ou sozinho contra bots inteligentes</p>
     </header>
@@ -375,8 +400,10 @@
     </footer>
 
     <script>
-        let chatPlayerName = ''; // Nome APENAS para o chat
+        let chatPlayerName = '';
         let ws = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
 
         const soloBtn = document.getElementById('soloBtn');
         const multiBtn = document.getElementById('multiBtn');
@@ -386,6 +413,7 @@
         const sendGlobalChatBtn = document.getElementById('sendGlobalChatBtn');
         const globalChatMessages = document.getElementById('globalChatMessages');
         const chatGroup = document.getElementById('chatGroup');
+        const connectionStatus = document.getElementById('connectionStatus');
 
         const getWebSocketURL = () => {
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -396,16 +424,41 @@
             }
         };
 
+        function updateConnectionStatus(status, message = '') {
+            connectionStatus.className = `connection-status status-${status}`;
+            const statusText = {
+                'connected': 'Online',
+                'connecting': 'Conectando...',
+                'disconnected': 'Offline'
+            };
+            connectionStatus.textContent = statusText[status] + (message ? ` ${message}` : '');
+        }
+
         function connectGlobalChat() {
+            if (!chatPlayerName) return;
+
+            updateConnectionStatus('connecting');
             ws = new WebSocket(getWebSocketURL());
             
             ws.onopen = () => {
                 console.log('Conectado ao chat global');
+                updateConnectionStatus('connected');
+                reconnectAttempts = 0;
+                
+                // Enviar mensagem de entrada CORRIGIDA
+                ws.send(JSON.stringify({
+                    type: 'globalChat',
+                    name: 'Sistema',
+                    message: `${chatPlayerName} entrou no chat!`
+                }));
             };
 
             ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
+                    console.log('Mensagem recebida:', data);
+                    
+                    // CORRIGIDO: Processar mensagem global corretamente
                     if (data.type === 'globalChatUpdate') {
                         addChatMessage(data.message.name, data.message.message);
                     }
@@ -416,40 +469,65 @@
 
             ws.onerror = (error) => {
                 console.error('Erro no WebSocket:', error);
+                updateConnectionStatus('disconnected', 'Erro');
             };
 
-            ws.onclose = () => {
-                console.log('Conexão do chat global fechada');
-                setTimeout(connectGlobalChat, 3000);
+            ws.onclose = (event) => {
+                console.log('Conexão do chat global fechada. Código:', event.code);
+                updateConnectionStatus('disconnected');
+                
+                // Reconectar automaticamente se não foi intencional
+                if (reconnectAttempts < maxReconnectAttempts && chatPlayerName) {
+                    reconnectAttempts++;
+                    console.log(`Tentativa de reconexão ${reconnectAttempts}/${maxReconnectAttempts}`);
+                    setTimeout(() => {
+                        connectGlobalChat();
+                    }, 3000 + (reconnectAttempts * 1000));
+                }
             };
         }
 
-        // Definir nome APENAS para o chat (não afeta o jogo)
+        // CORRIGIDO: Definir nome e conectar ao chat
         setNameBtn.onclick = () => {
             const name = playerNameInput.value.trim();
             if (name && name.length >= 2) {
                 chatPlayerName = name;
-                localStorage.setItem('chatPlayerName', name); // Salvar nome do chat
+                localStorage.setItem('chatPlayerName', name);
+                
                 playerNameInput.style.display = 'none';
                 setNameBtn.style.display = 'none';
                 chatGroup.style.display = 'flex';
                 
-                addChatMessage('Sistema', `${chatPlayerName} entrou no chat!`);
+                // Conectar ao WebSocket APENAS após definir nome
                 connectGlobalChat();
+                
+                console.log('Nome definido:', chatPlayerName);
             } else {
                 alert('Digite um nome com pelo menos 2 caracteres!');
             }
         };
 
+        // CORRIGIDO: Enviar mensagem global
         function sendGlobalMessage() {
             const message = globalChatInput.value.trim();
             if (message && chatPlayerName && ws && ws.readyState === WebSocket.OPEN) {
+                console.log('Enviando mensagem:', message);
+                
+                // ENVIAR MENSAGEM CORRETA PARA O SERVIDOR
                 ws.send(JSON.stringify({
                     type: 'globalChat',
                     name: chatPlayerName,
                     message: message
                 }));
+                
                 globalChatInput.value = '';
+            } else {
+                console.log('Não é possível enviar mensagem:', {
+                    message: !!message,
+                    chatPlayerName: !!chatPlayerName,
+                    ws: !!ws,
+                    wsReady: ws ? ws.readyState === WebSocket.OPEN : false
+                });
             }
         }
 
@@ -470,34 +548,49 @@
         function addChatMessage(name, message) {
             const messageDiv = document.createElement('div');
             messageDiv.className = 'chat-message';
-            messageDiv.innerHTML = `<strong>${name}:</strong> ${message}`;
+            messageDiv.innerHTML = `<strong>${escapeHtml(name)}:</strong> ${escapeHtml(message)}`;
             
             globalChatMessages.appendChild(messageDiv);
             globalChatMessages.scrollTop = globalChatMessages.scrollHeight;
             
+            // Manter apenas últimas 50 mensagens
             while (globalChatMessages.children.length > 50) {
                 globalChatMessages.removeChild(globalChatMessages.firstChild);
             }
         }
 
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // Botões de jogo - SEMPRE pedem nome separado
         soloBtn.onclick = () => {
-            // Ir para página do jogo em modo solo
             window.location.href = 'game.html?mode=solo';
         };
 
         multiBtn.onclick = () => {
-            // Ir para página do jogo em modo multiplayer
             window.location.href = 'game.html?mode=multi';
         };
 
-        // Carregar nome salvo do chat se existir
+        // INICIALIZAÇÃO
         window.onload = () => {
+            // Carregar nome salvo do chat se existir
             const savedChatName = localStorage.getItem('chatPlayerName');
             if (savedChatName) {
                 playerNameInput.value = savedChatName;
             }
+            
+            updateConnectionStatus('disconnected');
         };
+
+        // Cleanup ao sair da página
+        window.addEventListener('beforeunload', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
+        });
     </script>
 </body>
 </html>

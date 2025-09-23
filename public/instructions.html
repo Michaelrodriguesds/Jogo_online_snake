@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Multiplayer - Como Jogar</title>
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: white;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 2.5em;
+            color: #00FF00;
+            text-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #FFD700;
+            font-size: 1.1em;
+        }
+
+        .section {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 2px solid #00FF00;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
+        }
+
+        .section h2 {
+            color: #00FF00;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+
+        .section h3 {
+            color: #FFD700;
+            margin: 15px 0 10px 0;
+            font-size: 1.2em;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .control-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .control-item strong {
+            color: #FFD700;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .key {
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 5px;
+            padding: 5px 10px;
+            margin: 2px;
+            display: inline-block;
+            font-family: monospace;
+            color: #00FF00;
+        }
+
+        .tip {
+            background: rgba(255, 215, 0, 0.1);
+            border-left: 4px solid #FFD700;
+            padding: 10px 15px;
+            margin: 10px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .tip strong {
+            color: #FFD700;
+        }
+
+        .back-btn {
+            display: inline-block;
+            padding: 12px 25px;
+            background: linear-gradient(45deg, #FF5555, #CC4444);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+
+        .back-btn:hover {
+            background: linear-gradient(45deg, #CC4444, #AA3333);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 85, 85, 0.3);
+        }
+
+        .emoji {
+            font-size: 1.2em;
+            margin-right: 8px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+
+            .title {
+                font-size: 2em;
+            }
+
+            .section {
+                padding: 20px 15px;
+            }
+
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="title">Como Jogar Snake Multiplayer</h1>
+            <p class="subtitle">Guia completo para dominar o jogo</p>
+        </header>
+
+        <section class="section">
+            <h2><span class="emoji">🎮</span>Controles</h2>
+            
+            <h3>Desktop/Notebook:</h3>
+            <div class="controls-grid">
+                <div class="control-item">
+                    <strong>Setas do Teclado</strong>
+                    <div>
+                        <span class="key">↑</span> <span class="key">↓</span> 
+                        <span class="key">←</span> <span class="key">→</span>
+                    </div>
+                </div>
+                <div class="control-item">
+                    <strong>Teclas WASD</strong>
+                    <div>
+                        <span class="key">W</span> <span class="key">S</span> 
+                        <span class="key">A</span> <span class="key">D</span>
+                    </div>
+                </div>
+                <div class="control-item">
+                    <strong>Voltar ao Menu</strong>
+                    <div><span class="key">ESC</span></div>
+                </div>
+            </div>
+
+            <h3>Mobile/Tablet:</h3>
+            <div class="controls-grid">
+                <div class="control-item">
+                    <strong>Botões Direcionais</strong>
+                    <p>Use os botões na tela</p>
+                </div>
+                <div class="control-item">
+                    <strong>Toque na Tela</strong>
+                    <p>Toque na direção desejada</p>
+                </div>
+                <div class="control-item">
+                    <strong>Deslizar (Swipe)</strong>
+                    <p>Deslize o dedo na tela</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2><span class="emoji">🐍</span>Como Jogar</h2>
+            <h3>Objetivo:</h3>
+            <p>Controle sua cobra para coletar comida e crescer, evitando colidir com as paredes, com você mesmo ou com outras cobras.</p>
+
+            <h3>Regras Básicas:</h3>
+            <ul style="margin: 15px 0; padding-left: 20px;">
+                <li>Sua cobra se move continuamente na direção escolhida</li>
+                <li>Coletar comida faz sua cobra crescer e aumenta sua pontuação</li>
+                <li>Colidir com qualquer obstáculo elimina você do jogo</li>
+                <li>O último jogador vivo vence a partida</li>
+                <li>Sua cobra acelera conforme cresce</li>
+            </ul>
+
+            <div class="tip">
+                <strong>Dica:</strong> Planeje seus movimentos com antecedência. Cobra grande é mais difícil de manobrar!
+            </div>
+        </section>
+
+        <section class="section">
+            <h2><span class="emoji">👥</span>Modos de Jogo</h2>
+            
+            <h3>Modo Solo:</h3>
+            <p>Jogue contra 3 bots inteligentes. Perfeito para praticar e melhorar suas habilidades.</p>
+            
+            <h3>Modo Multiplayer:</h3>
+            <p>Até 4 jogadores online em tempo real. Crie uma sala ou entre usando um PIN.</p>
+
+            <div class="tip">
+                <strong>Dica:</strong> No multiplayer, compartilhe o PIN da sala com seus amigos para jogarem juntos!
+            </div>
+        </section>
+
+        <section class="section">
+            <h2><span class="emoji">💬</span>Sistema de Chat</h2>
+            
+            <h3>Chat Global (Menu Principal):</h3>
+            <p>Converse com outros jogadores online antes de começar uma partida.</p>
+            
+            <h3>Chat no Jogo:</h3>
+            <p>Durante a partida, use o botão <strong>💬</strong> no canto da tela para enviar mensagens rápidas que aparecerão na cabeça da sua cobra.</p>
+
+            <h3>Mensagens Rápidas Disponíveis:</h3>
+            <div style="margin: 10px 0;">
+                <span style="background: rgba(255,215,0,0.2); padding: 5px 10px; border-radius: 15px; margin: 5px; display: inline-block;">👍 GG!</span>
+                <span style="background: rgba(255,215,0,0.2); padding: 5px 10px; border-radius: 15px; margin: 5px; display: inline-block;">😱 Nooo!</span>
+                <span style="background: rgba(255,215,0,0.2); padding: 5px 10px; border-radius: 15px; margin: 5px; display: inline-block;">🔥 Nice!</span>
+                <span style="background: rgba(255,215,0,0.2); padding: 5px 10px; border-radius: 15px; margin: 5px; display: inline-block;">⚡ Go!</span>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2><span class="emoji">🏆</span>Estratégias e Dicas</h2>
+            
+            <h3>Para Iniciantes:</h3>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Comece devagar, não tenha pressa</li>
+                <li>Mantenha distância das bordas</li>
+                <li>Observe o movimento dos oponentes</li>
+                <li>Use as bordas como proteção quando necessário</li>
+            </ul>
+
+            <h3>Estratégias Avançadas:</h3>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                <li>Cerque oponentes menores para eliminá-los</li>
+                <li>Use seu tamanho como vantagem defensiva</li>
+                <li>Antecipe os movimentos dos oponentes</li>
+                <li>Controle o centro do mapa quando possível</li>
+            </ul>
+
+            <div class="tip">
+                <strong>Dica Especial:</strong> Cobras maiores se movem mais devagar - use isso a seu favor!
+            </div>
+        </section>
+
+        <section class="section">
+            <h2><span class="emoji">⚙️</span>Configurações Especiais</h2>
+            
+            <h3>Mobile:</h3>
+            <p>O jogo detecta automaticamente dispositivos móveis e ativa controles otimizados.</p>
+            
+            <h3>Conectividade:</h3>
+            <p>O jogo funciona tanto em localhost (desenvolvimento) quanto online. A conexão é mostrada no canto da tela.</p>
+
+            <div class="tip">
+                <strong>Importante:</strong> Para melhor experiência em mobile, jogue em modo paisagem (horizontal).
+            </div>
+        </section>
+
+        <div style="text-align: center;">
+            <a href="index.html" class="back-btn">← Voltar ao Menu Principal</a>
+        </div>
+    </div>
+</body>
+</html>
