@@ -1,6 +1,7 @@
 # Jogo da Cobrinha Online
 
 Um jogo da cobrinha multiplayer em tempo real usando Node.js, Express e WebSockets.
+link para jogar --- >   https://jogo-online-snake.onrender.com/
 
 ## Funcionalidades
 
