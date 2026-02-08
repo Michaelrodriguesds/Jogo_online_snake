@@ -1,24 +1,43 @@
+/* ============================================
+   🎮 SNAKE MULTIPLAYER - JAVASCRIPT CLIENT
+   ============================================
+   Arquivo: client.js
+   Responsabilidades:
+   - Gerenciamento de estado do jogo
+   - Comunicação WebSocket com servidor
+   - Renderização no canvas
+   - Controles (teclado, touch, mobile)
+   - Interface de usuário (menus, lobby, chat)
+   - Animações
+   ============================================ */
+
+// ========== ELEMENTOS DOM ==========
+// Canvas
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const menuCanvas = document.getElementById('menuCanvas');
 const menuCtx = menuCanvas.getContext('2d');
 
+// Menus
 const menuDiv = document.getElementById('menu');
 const multiMenuDiv = document.getElementById('multiMenu');
 const lobbyDiv = document.getElementById('lobby');
 
+// Botões do menu
 const soloBtn = document.getElementById('soloBtn');
 const multiBtn = document.getElementById('multiBtn');
 const createRoomBtn = document.getElementById('createRoomBtn');
 const joinRoomBtn = document.getElementById('joinRoomBtn');
 const readyBtn = document.getElementById('readyBtn');
-
+const backToHomeBtn = document.getElementById('backToHomeBtn');
 const backFromMulti = document.getElementById('backFromMulti');
 const backFromLobby = document.getElementById('backFromLobby');
 
+// Inputs
 const pinInput = document.getElementById('pinInput');
 const nameInput = document.getElementById('nameInput');
 
+// UI do jogo
 const pinDisplay = document.getElementById('pinDisplay');
 const playersList = document.getElementById('playersList');
 const scoreboard = document.getElementById('scoreboard');
@@ -31,17 +50,553 @@ const leftBtn = document.getElementById('leftBtn');
 const rightBtn = document.getElementById('rightBtn');
 const downBtn = document.getElementById('downBtn');
 
-// Chat elements
-let globalChatDiv, lobbyChatDiv, gameMessagePanel, predefinedMessages = [];
-let isInGlobalChat = false;
+// ========== VARIÁVEIS GLOBAIS ==========
+// WebSocket e estado
+let ws = null;
+let playerId = null;
+let gameState = null;
+let playerName = '';
+let currentPIN = null;
 
-let ws, playerId, gameState, playerName, currentPIN;
+// Controle do jogo
 let isDrawing = false;
 let temporaryMessages = [];
 const GRID_SIZE = 20;
 let timeRemaining = 0;
 
-// --- Criar Interface de Chat Global (Menu Principal) ---
+// Chat
+let globalChatDiv = null;
+let lobbyChatDiv = null;
+let gameMessagePanel = null;
+let predefinedMessages = [];
+let isInGlobalChat = false;
+
+// ========== DETECÇÃO DE DISPOSITIVO ==========
+/**
+ * Detecta se é dispositivo mobile
+ * @returns {boolean} true se for mobile
+ */
+function isMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+// ========== CONFIGURAÇÃO DE CANVAS ==========
+/**
+ * Configura tamanho do canvas baseado no dispositivo
+ */
+function setupCanvas() {
+    if (isMobileDevice()) {
+        // Mobile - tela cheia
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        menuCanvas.width = window.innerWidth * 0.9;
+        menuCanvas.height = window.innerHeight * 0.6;
+    } else {
+        // Desktop - tamanho fixo
+        canvas.width = 800;
+        canvas.height = 600;
+        menuCanvas.width = 800;
+        menuCanvas.height = 600;
+    }
+    
+    ctx.imageSmoothingEnabled = false;
+    console.log('Canvas configurado:', canvas.width + 'x' + canvas.height);
+}
+
+// ========== WEBSOCKET ==========
+/**
+ * Retorna URL do WebSocket baseado no ambiente
+ * @returns {string} URL do WebSocket
+ */
+const getWebSocketURL = () => {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'ws://localhost:8080';
+    } else {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${protocol}//${window.location.host}`;
+    }
+};
+
+/**
+ * Configura event listeners do WebSocket
+ */
+function setupWS() {
+    hideElement(multiMenuDiv);
+    showElement(lobbyDiv);
+    
+    // Criar chat do lobby
+    createLobbyChatUI();
+    if (lobbyChatDiv) {
+        lobbyChatDiv.style.display = 'flex';
+    }
+
+    ws.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            handleMessage(data);
+        } catch (error) {
+            console.error('Erro ao processar mensagem:', error);
+        }
+    };
+    
+    ws.onerror = (error) => {
+        console.error('Erro WebSocket:', error);
+        alert('Erro de conexão. Verifique se o servidor está rodando.');
+        showMenu();
+    };
+    
+    ws.onclose = () => {
+        console.log('Conexão fechada');
+        isDrawing = false;
+        timeRemaining = 0;
+        updateTimerDisplay();
+    };
+}
+
+/**
+ * Processa mensagens do servidor
+ * @param {Object} data - Dados recebidos
+ */
+function handleMessage(data) {
+    switch (data.type) {
+        case 'joined':
+            playerId = data.playerId;
+            gameState = data.gameState;
+            currentPIN = data.pin;
+            pinDisplay.innerText = "PIN da Sala: " + currentPIN;
+            if (data.predefinedMessages) {
+                predefinedMessages = data.predefinedMessages;
+            }
+            updateLobby(data);
+            if (data.chatMessages) {
+                updateLobbyChat(data.chatMessages);
+            }
+            break;
+        
+        case 'lobbyUpdate':
+            updateLobby(data);
+            break;
+        
+        case 'chatUpdate':
+            updateLobbyChat(data.chatMessages);
+            break;
+        
+        case 'globalChatUpdate':
+            updateGlobalChat(data.message);
+            break;
+        
+        case 'update':
+            gameState = data.gameState;
+            
+            if (gameState.temporaryMessages && gameState.temporaryMessages.length > 0) {
+                temporaryMessages = gameState.temporaryMessages;
+            }
+            
+            if (gameState.messages && gameState.messages.length > 0) {
+                messagesDiv.innerHTML = gameState.messages.slice(-5).join('<br>');
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+            
+            if (gameState.status === 'playing') {
+                hideElement(lobbyDiv);
+                if (lobbyChatDiv) lobbyChatDiv.style.display = 'none';
+                showElement(canvas);
+                showElement(scoreboard);
+                showElement(messagesDiv);
+                
+                // Criar botão de mensagens do jogo
+                if (!document.getElementById('gameMessageFloat')) {
+                    createGameMessagePanel();
+                }
+                
+                // Garantir que botão seja exibido
+                const floatingBtn = document.getElementById('gameMessageFloat');
+                if (floatingBtn) {
+                    floatingBtn.style.display = 'block';
+                }
+                
+                if (!isDrawing) {
+                    isDrawing = true;
+                    draw();
+                }
+            }
+            break;
+        
+        case 'gameEnd':
+            gameState = data.gameState;
+            isDrawing = false;
+            
+            // Ocultar botão de mensagens
+            const floatingBtn = document.getElementById('gameMessageFloat');
+            if (floatingBtn) floatingBtn.style.display = 'none';
+            
+            // Fechar modal se estiver aberto
+            const messageModal = document.getElementById('messageModal');
+            if (messageModal) messageModal.remove();
+            
+            setTimeout(() => showPodium(), 1000);
+            break;
+        
+        case 'timeUpdate':
+            timeRemaining = data.timeRemaining;
+            updateTimerDisplay();
+            break;
+        
+        case 'error':
+            alert(data.message);
+            hideElement(lobbyDiv);
+            if (lobbyChatDiv) lobbyChatDiv.style.display = 'none';
+            showElement(multiMenuDiv);
+            break;
+    }
+}
+
+// ========== CONTROLES ==========
+/**
+ * Envia movimento para o servidor
+ * @param {number} dx - Delta X
+ * @param {number} dy - Delta Y
+ */
+function sendMove(dx, dy) {
+    if (!ws || !gameState || gameState.status !== 'playing') return;
+    
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({type: 'move', dx, dy}));
+    }
+}
+
+/**
+ * Configura controles para dispositivos mobile
+ * APENAS SWIPE - sem botões na tela
+ */
+function setupMobileControls() {
+    if (!isMobileDevice()) {
+        console.log('Desktop detectado - usando teclado');
+        return;
+    }
+    
+    console.log('Mobile detectado - usando SWIPE/TOQUE (sem botões)');
+    
+    // NÃO mostrar botões - usar apenas swipe
+    // mobileControls permanece escondido via CSS
+}
+
+/**
+ * Configura controles por swipe/toque na tela
+ */
+function setupSwipeControls() {
+    if (!isMobileDevice()) return;
+    
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const minSwipeDistance = 50;
+    
+    canvas.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        e.preventDefault();
+    }, { passive: false });
+    
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+    }, { passive: false });
+    
+    canvas.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const touchEndY = e.changedTouches[0].clientY;
+        
+        const diffX = touchEndX - touchStartX;
+        const diffY = touchEndY - touchStartY;
+        
+        const swipeLength = Math.sqrt(diffX * diffX + diffY * diffY);
+        if (swipeLength < minSwipeDistance) return;
+        
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+            if (diffX > 0) {
+                sendMove(GRID_SIZE, 0);
+                showSwipeFeedback('➡️');
+            } else {
+                sendMove(-GRID_SIZE, 0);
+                showSwipeFeedback('⬅️');
+            }
+        } else {
+            if (diffY > 0) {
+                sendMove(0, GRID_SIZE);
+                showSwipeFeedback('⬇️');
+            } else {
+                sendMove(0, -GRID_SIZE);
+                showSwipeFeedback('⬆️');
+            }
+        }
+        
+        e.preventDefault();
+    }, { passive: false });
+}
+
+/**
+ * Mostra feedback visual do swipe
+ * @param {string} direction - Emoji da direção
+ */
+function showSwipeFeedback(direction) {
+    const feedback = document.createElement('div');
+    feedback.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 40px;
+        z-index: 999;
+        pointer-events: none;
+        animation: swipeFade 0.5s ease-out;
+    `;
+    feedback.innerHTML = direction;
+    document.body.appendChild(feedback);
+    
+    setTimeout(() => feedback.remove(), 500);
+    
+    // Adicionar CSS da animação se não existir
+    if (!document.getElementById('swipeStyles')) {
+        const style = document.createElement('style');
+        style.id = 'swipeStyles';
+        style.textContent = `
+            @keyframes swipeFade {
+                0% { opacity: 1; transform: translate(-50%, -50%) scale(1.5); }
+                100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+/**
+ * Controles do teclado
+ */
+document.addEventListener('keydown', e => {
+    if (!ws || !gameState || gameState.status !== 'playing') return;
+    
+    let dx = 0, dy = 0;
+    
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        dy = -GRID_SIZE;
+    } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        dy = GRID_SIZE;
+    } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        dx = -GRID_SIZE;
+    } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        dx = GRID_SIZE;
+    } else if (e.key === 'r' || e.key === 'R') {
+        if (gameState && gameState.status === 'finished' && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({type: 'restartGame'}));
+        }
+        return;
+    } else if (e.key === 'Escape') {
+        showMenu();
+        return;
+    } else {
+        return;
+    }
+    
+    e.preventDefault();
+    sendMove(dx, dy);
+});
+
+// ========== RENDERIZAÇÃO ==========
+/**
+ * Limpa mensagens temporárias antigas
+ */
+function clearOldTemporaryMessages() {
+    const now = Date.now();
+    temporaryMessages = temporaryMessages.filter(
+        msg => now - msg.timestamp < 5000
+    );
+}
+
+/**
+ * Loop principal de renderização
+ */
+function draw() {
+    if (!gameState || !isDrawing) return;
+    
+    clearOldTemporaryMessages();
+    
+    // Fundo
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Grid sutil
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < canvas.width; x += GRID_SIZE) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += GRID_SIZE) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+    }
+    
+    // Comida com brilho
+    ctx.shadowColor = '#FF5555';
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = '#FF5555';
+    ctx.fillRect(gameState.food.x + 2, gameState.food.y + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+    ctx.shadowBlur = 0;
+    
+    // Borda da comida
+    ctx.strokeStyle = '#FF0000';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(gameState.food.x, gameState.food.y, GRID_SIZE, GRID_SIZE);
+    
+    // Desenhar cobras
+    for (let id in gameState.snakes) {
+        const snake = gameState.snakes[id];
+        if (!snake.alive) continue;
+        
+        snake.body.forEach((segment, index) => {
+            if (index === 0) {
+                // Cabeça com destaque
+                ctx.fillStyle = snake.color || '#00FF00';
+                ctx.fillRect(segment.x + 1, segment.y + 1, GRID_SIZE - 2, GRID_SIZE - 2);
+                
+                // Borda da cabeça
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(segment.x, segment.y, GRID_SIZE, GRID_SIZE);
+                
+                // Olhos baseados na direção
+                ctx.fillStyle = '#000000';
+                const eyeSize = 4;
+                if (snake.dx > 0) {
+                    ctx.fillRect(segment.x + 13, segment.y + 4, eyeSize, eyeSize);
+                    ctx.fillRect(segment.x + 13, segment.y + 12, eyeSize, eyeSize);
+                } else if (snake.dx < 0) {
+                    ctx.fillRect(segment.x + 3, segment.y + 4, eyeSize, eyeSize);
+                    ctx.fillRect(segment.x + 3, segment.y + 12, eyeSize, eyeSize);
+                } else if (snake.dy > 0) {
+                    ctx.fillRect(segment.x + 4, segment.y + 13, eyeSize, eyeSize);
+                    ctx.fillRect(segment.x + 12, segment.y + 13, eyeSize, eyeSize);
+                } else {
+                    ctx.fillRect(segment.x + 4, segment.y + 3, eyeSize, eyeSize);
+                    ctx.fillRect(segment.x + 12, segment.y + 3, eyeSize, eyeSize);
+                }
+            } else {
+                // Corpo da cobra
+                ctx.fillStyle = snake.color || '#00FF00';
+                ctx.fillRect(segment.x + 2, segment.y + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+                
+                // Borda sutil do corpo
+                ctx.strokeStyle = snake.color || '#00FF00';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(segment.x + 1, segment.y + 1, GRID_SIZE - 2, GRID_SIZE - 2);
+            }
+        });
+        
+        // Nome da cobra ou mensagem temporária
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 3;
+        const headX = snake.body[0].x + GRID_SIZE/2;
+        const headY = snake.body[0].y - 8;
+        
+        let displayText = snake.name;
+        let showTempMessage = false;
+        
+        // Verificar mensagem temporária
+        if (snake.tempMessage) {
+            const now = Date.now();
+            const elapsed = now - snake.tempMessage.timestamp;
+            
+            if (elapsed < snake.tempMessage.duration) {
+                displayText = snake.tempMessage.text;
+                showTempMessage = true;
+                ctx.fillStyle = '#FFD700';
+                
+                // Fundo para a mensagem
+                const textWidth = ctx.measureText(displayText).width;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(headX - textWidth/2 - 8, headY - 16, textWidth + 16, 22);
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(headX - textWidth/2 - 8, headY - 16, textWidth + 16, 22);
+                
+                ctx.fillStyle = '#FFD700';
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+            }
+        }
+        
+        if (!showTempMessage) {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+        }
+        
+        ctx.strokeText(displayText, headX, headY);
+        ctx.fillText(displayText, headX, headY);
+    }
+    
+    // Mensagens temporárias no centro
+    if (temporaryMessages.length > 0) {
+        const latestMessage = temporaryMessages[temporaryMessages.length - 1];
+        
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        const textWidth = ctx.measureText(latestMessage.text).width;
+        
+        // Fundo
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(canvas.width / 2 - textWidth / 2 - 20, 40, textWidth + 40, 40);
+        
+        // Borda
+        ctx.strokeStyle = '#FFD700';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(canvas.width / 2 - textWidth / 2 - 20, 40, textWidth + 40, 40);
+        
+        // Texto
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 3;
+        ctx.strokeText(latestMessage.text, canvas.width / 2, 60);
+        ctx.fillStyle = '#FFD700';
+        ctx.fillText(latestMessage.text, canvas.width / 2, 60);
+    }
+    
+    // Atualizar scoreboard
+    const alivePlayers = Object.values(gameState.snakes).filter(s => s.alive);
+    const playerNames = alivePlayers.map(s => s.name).join(', ');
+    scoreboard.innerHTML = `Jogadores vivos (${alivePlayers.length}): ${playerNames}`;
+    
+    // Pontuação do jogador
+    const mySnake = gameState.snakes[playerId];
+    if (mySnake) {
+        ctx.fillStyle = '#FFD700';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'left';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        const scoreText = `Sua pontuação: ${mySnake.body.length} | Vivos: ${alivePlayers.length}`;
+        ctx.strokeText(scoreText, 10, 25);
+        ctx.fillText(scoreText, 10, 25);
+    }
+    
+    if (gameState.status === 'playing') {
+        requestAnimationFrame(draw);
+    } else {
+        isDrawing = false;
+    }
+}
+
+// ========== CHAT ==========
+/**
+ * Cria interface de chat global
+ */
 function createGlobalChatUI() {
     if (document.getElementById('globalChatDiv')) return;
     
@@ -133,13 +688,13 @@ function createGlobalChatUI() {
     
     sendBtn.onclick = sendGlobalChatMessage;
     input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendGlobalChatMessage();
-        }
+        if (e.key === 'Enter') sendGlobalChatMessage();
     });
 }
 
-// --- Criar Chat do Lobby ---
+/**
+ * Cria interface de chat do lobby
+ */
 function createLobbyChatUI() {
     if (document.getElementById('lobbyChatDiv')) return;
     
@@ -218,22 +773,20 @@ function createLobbyChatUI() {
     
     sendBtn.onclick = sendLobbyChatMessage;
     input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendLobbyChatMessage();
-        }
+        if (e.key === 'Enter') sendLobbyChatMessage();
     });
 }
 
-// --- Criar Painel de Mensagens do Jogo ---
+/**
+ * Cria painel de mensagens do jogo
+ */
 function createGameMessagePanel() {
-    // Verificar se já existe
     let floatingBtn = document.getElementById('gameMessageFloat');
     if (floatingBtn) {
         floatingBtn.style.display = 'block';
         return;
     }
     
-    // Criar botão flutuante pequeno para abrir painel
     floatingBtn = document.createElement('button');
     floatingBtn.id = 'gameMessageFloat';
     floatingBtn.innerHTML = '💬';
@@ -253,46 +806,23 @@ function createGameMessagePanel() {
         display: block !important;
         box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
         transition: all 0.3s;
-        opacity: 1 !important;
-        visibility: visible !important;
     `;
     
     floatingBtn.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log('Botão de mensagem clicado');
         showMessageModal();
     };
     
-    // Efeitos hover
-    floatingBtn.onmouseenter = () => {
-        floatingBtn.style.transform = 'scale(1.1)';
-    };
-    
-    floatingBtn.onmouseleave = () => {
-        floatingBtn.style.transform = 'scale(1)';
-    };
-    
     document.body.appendChild(floatingBtn);
-    console.log('Botão de mensagem criado e adicionado ao DOM');
-    
-    // Debug: verificar se o botão foi realmente criado
-    setTimeout(() => {
-        const check = document.getElementById('gameMessageFloat');
-        if (check) {
-            console.log('Botão confirmado no DOM:', check.style.display);
-        } else {
-            console.error('Falha ao criar botão de mensagem');
-        }
-    }, 100);
 }
 
+/**
+ * Mostra modal de mensagens
+ */
 function showMessageModal() {
-    // Remover modal existente se houver
     const existingModal = document.getElementById('messageModal');
-    if (existingModal) {
-        existingModal.remove();
-    }
+    if (existingModal) existingModal.remove();
     
     const modal = document.createElement('div');
     modal.id = 'messageModal';
@@ -328,7 +858,7 @@ function showMessageModal() {
         </div>
         <div style="margin-bottom: 15px;">
             <input type="text" id="customMsg" placeholder="Sua mensagem (máx 20 chars)" maxlength="20" 
-                   style="width: 100%; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.1); border: 2px solid #00FF00; color: white; text-align: center; font-size: 16px; font-family: Arial, sans-serif;">
+                   style="width: 100%; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.1); border: 2px solid #00FF00; color: white; text-align: center; font-size: 16px;">
         </div>
         <div>
             <button id="sendCustom" style="background: #00FF00; border: none; color: #000; padding: 10px 20px; border-radius: 10px; margin-right: 10px; font-weight: bold; cursor: pointer;">📤 Enviar</button>
@@ -352,7 +882,6 @@ function showMessageModal() {
         }
         .quick-msg:hover, .quick-msg:active {
             transform: scale(1.1);
-            background: linear-gradient(45deg, #FFA500, #FF8C00);
         }
     `;
     document.head.appendChild(style);
@@ -363,212 +892,35 @@ function showMessageModal() {
     // Event listeners
     document.querySelectorAll('.quick-msg').forEach(btn => {
         btn.onclick = () => {
-            const msg = btn.getAttribute('data-msg');
-            sendGameMessage(msg);
+            sendGameMessage(btn.getAttribute('data-msg'));
             modal.remove();
         };
     });
     
     document.getElementById('sendCustom').onclick = () => {
-        const customInput = document.getElementById('customMsg');
-        const msg = customInput.value.trim();
+        const msg = document.getElementById('customMsg').value.trim();
         if (msg) {
             sendGameMessage(msg);
             modal.remove();
         }
     };
     
-    document.getElementById('cancelMsg').onclick = () => {
-        modal.remove();
-    };
+    document.getElementById('cancelMsg').onclick = () => modal.remove();
     
     document.getElementById('customMsg').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            document.getElementById('sendCustom').click();
-        }
+        if (e.key === 'Enter') document.getElementById('sendCustom').click();
     });
     
-    // Fechar clicando fora
     modal.onclick = (e) => {
-        if (e.target === modal) {
-            modal.remove();
-        }
+        if (e.target === modal) modal.remove();
     };
     
-    // Focar no input
-    setTimeout(() => {
-        document.getElementById('customMsg').focus();
-    }, 100);
+    setTimeout(() => document.getElementById('customMsg').focus(), 100);
 }
 
-// --- Função para obter URL do WebSocket ---
-const getWebSocketURL = () => {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return 'ws://localhost:8080';
-    } else {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        return `${protocol}//${window.location.host}`;
-    }
-};
-
-// --- Detectar se é dispositivo mobile ---
-function isMobileDevice() {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-}
-
-// --- Enviar movimento ---
-function sendMove(dx, dy) {
-    if (!ws || !gameState || gameState.status !== 'playing') return;
-    
-    if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({type: 'move', dx, dy}));
-    }
-}
-
-// --- Configurar controles mobile ---
-function setupMobileControls() {
-    if (isMobileDevice()) {
-        // Garantir que controles sejam visíveis
-        mobileControls.style.display = 'flex';
-        mobileControls.classList.add('active');
-        
-        // Aumentar tamanho dos botões mobile
-        const controlBtns = document.querySelectorAll('.control-btn');
-        controlBtns.forEach(btn => {
-            btn.style.width = '80px';
-            btn.style.height = '80px';
-            btn.style.fontSize = '28px';
-            btn.style.fontWeight = 'bold';
-            btn.style.background = 'linear-gradient(45deg, rgba(0, 255, 0, 0.9), rgba(0, 200, 0, 0.9))';
-            btn.style.border = '3px solid #00FF00';
-            btn.style.boxShadow = '0 0 15px rgba(0, 255, 0, 0.5)';
-        });
-        
-        // Ajustar grid para botões maiores
-        const controlDirection = document.querySelector('.control-direction');
-        if (controlDirection) {
-            controlDirection.style.gridTemplateColumns = 'repeat(3, 80px)';
-            controlDirection.style.gridTemplateRows = 'repeat(3, 80px)';
-            controlDirection.style.gap = '15px';
-        }
-        
-        // Event listeners com prevenção de bugs
-        const addMobileEvent = (btn, dx, dy) => {
-            btn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                sendMove(dx, dy);
-                btn.style.background = 'linear-gradient(45deg, #00FF00, #00CC00)';
-                btn.style.transform = 'scale(0.95)';
-            }, { passive: false });
-            
-            btn.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                btn.style.background = 'linear-gradient(45deg, rgba(0, 255, 0, 0.9), rgba(0, 200, 0, 0.9))';
-                btn.style.transform = 'scale(1)';
-            }, { passive: false });
-            
-            btn.addEventListener('touchcancel', (e) => {
-                e.preventDefault();
-                btn.style.background = 'linear-gradient(45deg, rgba(0, 255, 0, 0.9), rgba(0, 200, 0, 0.9))';
-                btn.style.transform = 'scale(1)';
-            }, { passive: false });
-        };
-        
-        addMobileEvent(upBtn, 0, -GRID_SIZE);
-        addMobileEvent(downBtn, 0, GRID_SIZE);
-        addMobileEvent(leftBtn, -GRID_SIZE, 0);
-        addMobileEvent(rightBtn, GRID_SIZE, 0);
-    }
-}
-
-// --- Suporte a Swipe Gestures + Controle por Toque na Tela ---
-function setupSwipeControls() {
-    if (!isMobileDevice()) return;
-    
-    let touchStartX = 0;
-    let touchStartY = 0;
-    const minSwipeDistance = 50; // Aumentado para evitar toques acidentais
-    
-    canvas.addEventListener('touchstart', (e) => {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-        e.preventDefault();
-    }, { passive: false });
-    
-    canvas.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-    }, { passive: false });
-    
-    canvas.addEventListener('touchend', (e) => {
-        const touchEndX = e.changedTouches[0].clientX;
-        const touchEndY = e.changedTouches[0].clientY;
-        
-        const diffX = touchEndX - touchStartX;
-        const diffY = touchEndY - touchStartY;
-        
-        // Verificar se o swipe é forte o suficiente
-        const swipeLength = Math.sqrt(diffX * diffX + diffY * diffY);
-        if (swipeLength < minSwipeDistance) return;
-        
-        // Determinar direção baseada no maior componente
-        if (Math.abs(diffX) > Math.abs(diffY)) {
-            // Movimento horizontal
-            if (diffX > 0) {
-                sendMove(GRID_SIZE, 0); // Direita
-                showSwipeFeedback('➡️');
-            } else {
-                sendMove(-GRID_SIZE, 0); // Esquerda
-                showSwipeFeedback('⬅️');
-            }
-        } else {
-            // Movimento vertical
-            if (diffY > 0) {
-                sendMove(0, GRID_SIZE); // Baixo
-                showSwipeFeedback('⬇️');
-            } else {
-                sendMove(0, -GRID_SIZE); // Cima
-                showSwipeFeedback('⬆️');
-            }
-        }
-        
-        e.preventDefault();
-    }, { passive: false });
-}
-
-function showSwipeFeedback(direction) {
-    const feedback = document.createElement('div');
-    feedback.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-size: 40px;
-        z-index: 999;
-        pointer-events: none;
-        animation: swipeFade 0.5s ease-out;
-    `;
-    feedback.innerHTML = direction;
-    document.body.appendChild(feedback);
-    
-    setTimeout(() => feedback.remove(), 500);
-    
-    // Adicionar CSS da animação se não existir
-    if (!document.getElementById('swipeStyles')) {
-        const style = document.createElement('style');
-        style.id = 'swipeStyles';
-        style.textContent = `
-            @keyframes swipeFade {
-                0% { opacity: 1; transform: translate(-50%, -50%) scale(1.5); }
-                100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-}
-
-// --- Chat Functions ---
+/**
+ * Envia mensagem do chat global
+ */
 function sendGlobalChatMessage() {
     const input = document.getElementById('globalChatInput');
     if (!input || !input.value.trim() || !playerName) return;
@@ -583,6 +935,9 @@ function sendGlobalChatMessage() {
     }
 }
 
+/**
+ * Envia mensagem do chat do lobby
+ */
 function sendLobbyChatMessage() {
     const input = document.getElementById('lobbyChatInput');
     if (!input || !input.value.trim() || !ws) return;
@@ -596,39 +951,25 @@ function sendLobbyChatMessage() {
     }
 }
 
+/**
+ * Envia mensagem durante o jogo
+ * @param {string} message - Mensagem a enviar
+ */
 function sendGameMessage(message) {
-    console.log('Tentando enviar mensagem do jogo:', message); // Debug
-    
-    if (!ws || !gameState || gameState.status !== 'playing') {
-        console.log('WebSocket ou gameState inválido'); // Debug
-        return;
-    }
+    if (!ws || !gameState || gameState.status !== 'playing') return;
     
     if (ws.readyState === WebSocket.OPEN) {
-        console.log('Enviando via WebSocket:', message); // Debug
         ws.send(JSON.stringify({
             type: 'gameMessage',
             message: message
         }));
-        
-        // Feedback visual imediato
-        const btn = event.target;
-        const originalBg = btn.style.background;
-        btn.style.background = '#FFD700';
-        btn.style.color = '#000';
-        btn.innerHTML = '✓ Enviado!';
-        
-        setTimeout(() => {
-            btn.style.background = originalBg;
-            btn.style.color = '#000';
-            btn.innerHTML = message;
-        }, 1000);
-    } else {
-        console.log('WebSocket não está aberto'); // Debug
     }
 }
 
-// --- Atualizar chats ---
+/**
+ * Atualiza chat global
+ * @param {Object} message - Mensagem recebida
+ */
 function updateGlobalChat(message) {
     const messagesDiv = document.getElementById('globalChatMessages');
     if (!messagesDiv) return;
@@ -644,12 +985,15 @@ function updateGlobalChat(message) {
     messagesDiv.appendChild(messageElement);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
     
-    // Manter apenas últimas 20 mensagens
     while (messagesDiv.children.length > 20) {
         messagesDiv.removeChild(messagesDiv.firstChild);
     }
 }
 
+/**
+ * Atualiza chat do lobby
+ * @param {Array} messages - Lista de mensagens
+ */
 function updateLobbyChat(messages) {
     const messagesDiv = document.getElementById('lobbyChatMessages');
     if (!messagesDiv) return;
@@ -669,121 +1013,10 @@ function updateLobbyChat(messages) {
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
-function showGameMessagePanel() {
-    if (!gameMessagePanel) return;
-    
-    // Cabeçalho com botão para fechar
-    gameMessagePanel.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 5px;">
-            <span style="color: #00FF00; font-size: 12px; font-weight: bold;">💬 Mensagens Rápidas</span>
-            <button id="closeGameMessages" style="background: #FF5555; border: none; color: white; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 12px; font-weight: bold;">×</button>
-        </div>
-    `;
-    
-    // Container para mensagens pré-definidas
-    const predefinedContainer = document.createElement('div');
-    predefinedContainer.style.cssText = 'display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 8px;';
-    
-    if (predefinedMessages && predefinedMessages.length > 0) {
-        predefinedMessages.forEach(message => {
-            const btn = document.createElement('button');
-            btn.innerText = message;
-            btn.style.cssText = `
-                background: linear-gradient(45deg, #00FF00, #00CC00);
-                border: none;
-                color: #000;
-                padding: 6px 10px;
-                border-radius: 15px;
-                cursor: pointer;
-                font-size: 11px;
-                font-weight: bold;
-                transition: all 0.2s;
-                flex: 0 0 auto;
-                min-width: fit-content;
-            `;
-            
-            btn.onclick = () => {
-                console.log('Enviando mensagem:', message);
-                sendGameMessage(message);
-            };
-            
-            btn.addEventListener('touchstart', () => btn.style.transform = 'scale(0.95)');
-            btn.addEventListener('touchend', () => btn.style.transform = 'scale(1)');
-            btn.addEventListener('mousedown', () => btn.style.transform = 'scale(0.95)');
-            btn.addEventListener('mouseup', () => btn.style.transform = 'scale(1)');
-            
-            predefinedContainer.appendChild(btn);
-        });
-    }
-    
-    // Seção para criar mensagem personalizada
-    const customContainer = document.createElement('div');
-    customContainer.style.cssText = 'display: flex; gap: 4px; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #00FF00;';
-    
-    const customInput = document.createElement('input');
-    customInput.id = 'customMessageInput';
-    customInput.placeholder = 'Sua mensagem...';
-    customInput.maxLength = 20;
-    customInput.style.cssText = `
-        flex: 1;
-        padding: 6px 8px;
-        border-radius: 10px;
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        color: white;
-        font-size: 11px;
-    `;
-    
-    const sendCustomBtn = document.createElement('button');
-    sendCustomBtn.innerText = '📤';
-    sendCustomBtn.style.cssText = `
-        background: #FFD700;
-        border: none;
-        color: #000;
-        padding: 6px 10px;
-        border-radius: 10px;
-        cursor: pointer;
-        font-size: 11px;
-        font-weight: bold;
-    `;
-    
-    sendCustomBtn.onclick = () => {
-        const customMessage = customInput.value.trim();
-        if (customMessage) {
-            console.log('Enviando mensagem personalizada:', customMessage);
-            sendGameMessage(customMessage);
-            customInput.value = '';
-        }
-    };
-    
-    customInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendCustomBtn.click();
-        }
-    });
-    
-    customContainer.appendChild(customInput);
-    customContainer.appendChild(sendCustomBtn);
-    
-    gameMessagePanel.appendChild(predefinedContainer);
-    gameMessagePanel.appendChild(customContainer);
-    gameMessagePanel.style.display = 'flex';
-    gameMessagePanel.style.flexDirection = 'column';
-    
-    // Event listener para fechar
-    document.getElementById('closeGameMessages').onclick = () => {
-        gameMessagePanel.style.display = 'none';
-    };
-    
-    // Auto-fechar após 45 segundos
-    setTimeout(() => {
-        if (gameMessagePanel && gameMessagePanel.style.display === 'flex') {
-            gameMessagePanel.style.display = 'none';
-        }
-    }, 45000);
-}
-
-// --- Atualizar timer ---
+// ========== UI ==========
+/**
+ * Atualiza display do timer
+ */
 function updateTimerDisplay() {
     let timerElement = document.getElementById('timerDisplay');
     
@@ -804,7 +1037,6 @@ function updateTimerDisplay() {
             border: 2px solid #FFD700;
             z-index: 1001;
             display: none;
-            box-shadow: 0 0 20px rgba(255,215,0,0.5);
         `;
         document.body.appendChild(timerElement);
     }
@@ -817,26 +1049,34 @@ function updateTimerDisplay() {
     }
 }
 
-// --- Mostrar/esconder elementos ---
+/**
+ * Mostra elemento
+ * @param {HTMLElement} element - Elemento a mostrar
+ */
 function showElement(element) {
     element.style.display = element === menuDiv ? 'flex' : 'block';
 }
 
+/**
+ * Esconde elemento
+ * @param {HTMLElement} element - Elemento a esconder
+ */
 function hideElement(element) {
     element.style.display = 'none';
 }
 
+/**
+ * Volta ao menu principal
+ */
 function showMenu() {
     hideElement(canvas);
     hideElement(multiMenuDiv);
     hideElement(lobbyDiv);
     if (lobbyChatDiv) lobbyChatDiv.style.display = 'none';
     
-    // Ocultar botão de mensagens do jogo
     const floatingBtn = document.getElementById('gameMessageFloat');
     if (floatingBtn) floatingBtn.style.display = 'none';
     
-    // Fechar modal se estiver aberto
     const messageModal = document.getElementById('messageModal');
     if (messageModal) messageModal.remove();
     
@@ -845,14 +1085,12 @@ function showMenu() {
     hideElement(scoreboard);
     hideElement(messagesDiv);
     
-    // SEMPRE mostrar chat global na tela principal
     createGlobalChatUI();
     createGlobalChatButton();
     if (globalChatDiv) {
         globalChatDiv.style.display = 'flex';
     }
     
-    // Limpar estado
     isDrawing = false;
     timeRemaining = 0;
     updateTimerDisplay();
@@ -862,11 +1100,12 @@ function showMenu() {
         ws = null;
     }
     
-    // Reiniciar animação do menu
     animateMenuSnake();
 }
 
-// --- Criar botão de chat global no menu ---
+/**
+ * Cria botão de chat global
+ */
 function createGlobalChatButton() {
     let chatBtn = document.getElementById('globalChatBtn');
     if (chatBtn) return;
@@ -887,7 +1126,6 @@ function createGlobalChatButton() {
         font-weight: bold;
         z-index: 999;
         font-size: ${isMobileDevice() ? '14px' : '12px'};
-        box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
     `;
     
     chatBtn.onclick = () => {
@@ -899,15 +1137,45 @@ function createGlobalChatButton() {
     document.body.appendChild(chatBtn);
 }
 
-// --- Configuração inicial ---
-// setupMobileControls(); - movido para depois
-// setupSwipeControls(); - movido para depois
+/**
+ * Atualiza lobby
+ * @param {Object} data - Dados do lobby
+ */
+function updateLobby(data) {
+    playersList.innerHTML = '';
+    const players = data.players || [];
+    
+    players.forEach((p, index) => {
+        const playerItem = document.createElement('div');
+        playerItem.className = 'player-item';
+        
+        let statusIcon = p.ready ? '✅' : '⏳';
+        let botIcon = p.isBot ? ' 🤖' : ' 👤';
+        let creatorBadge = (index === 0 && !p.isBot) ? ' 👑' : '';
+        
+        playerItem.innerHTML = `${p.name}${botIcon}${creatorBadge} - ${statusIcon}`;
+        playersList.appendChild(playerItem);
+    });
+    
+    const myPlayer = players.find(p => p.name === playerName);
+    if (myPlayer && myPlayer.ready) {
+        readyBtn.disabled = true;
+        readyBtn.innerText = "Pronto! ✓";
+        readyBtn.style.backgroundColor = "#00CC00";
+    } else {
+        readyBtn.disabled = false;
+        readyBtn.innerText = "Pronto";
+        readyBtn.style.backgroundColor = "#00FF00";
+    }
+}
 
-// --- Variáveis para animação do menu ---
+// ========== ANIMAÇÃO DO MENU ==========
 let snakeX = 0, snakeY = 300, snakeDir = 1;
 let animationRunning = false;
 
-// --- Tela inicial animada ---
+/**
+ * Anima cobra no menu
+ */
 function animateMenuSnake() {
     if (menuDiv.style.display === 'flex' && !animationRunning) {
         animationRunning = true;
@@ -922,7 +1190,6 @@ function animateMenuSnake() {
             menuCtx.clearRect(0, 0, menuCanvas.width, menuCanvas.height);
             menuCtx.fillStyle = "#00FF00";
             
-            // Desenha a cobra animada
             for (let i = 0; i < 8; i++) {
                 const segmentX = snakeX - i * 25;
                 const segmentY = snakeY;
@@ -930,7 +1197,6 @@ function animateMenuSnake() {
                 if (segmentX > -50 && segmentX < menuCanvas.width + 50) {
                     menuCtx.fillRect(segmentX, segmentY, 20, 20);
                     
-                    // Cabeça com olhos
                     if (i === 0) {
                         menuCtx.fillStyle = "#000000";
                         menuCtx.fillRect(segmentX + 15, segmentY + 5, 3, 3);
@@ -951,17 +1217,167 @@ function animateMenuSnake() {
     }
 }
 
-// --- Event Listeners dos Botões ---
+// ========== PÓDIO (FIM DE JOGO) ==========
+/**
+ * Mostra pódio com vencedores
+ */
+function showPodium() {
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.fillRect(50, 50, canvas.width - 100, canvas.height - 100);
+    
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(50, 50, canvas.width - 100, canvas.height - 100);
+    
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 36px Arial';
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    const title = '🏆 FIM DE JOGO 🏆';
+    ctx.strokeText(title, canvas.width / 2, 120);
+    ctx.fillText(title, canvas.width / 2, 120);
+    
+    if (gameState.leaderboard && gameState.leaderboard.length > 0) {
+        const topThree = gameState.leaderboard.slice(0, 3);
+        
+        const winner = topThree[0];
+        ctx.fillStyle = winner.isWinner ? '#00FF00' : '#FFD700';
+        ctx.font = 'bold 28px Arial';
+        const winnerText = `🥇 ${winner.name}`;
+        ctx.strokeText(winnerText, canvas.width / 2, 180);
+        ctx.fillText(winnerText, canvas.width / 2, 180);
+        
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 20px Arial';
+        const scoreText = `${winner.score} pontos`;
+        ctx.strokeText(scoreText, canvas.width / 2, 210);
+        ctx.fillText(scoreText, canvas.width / 2, 210);
+        
+        if (topThree.length > 1) {
+            ctx.font = 'bold 24px Arial';
+            ctx.fillStyle = '#C0C0C0';
+            const second = `🥈 ${topThree[1].name} - ${topThree[1].score}`;
+            ctx.strokeText(second, canvas.width / 2, 260);
+            ctx.fillText(second, canvas.width / 2, 260);
+        }
+        
+        if (topThree.length > 2) {
+            ctx.fillStyle = '#CD7F32';
+            const third = `🥉 ${topThree[2].name} - ${topThree[2].score}`;
+            ctx.strokeText(third, canvas.width / 2, 300);
+            ctx.fillText(third, canvas.width / 2, 300);
+        }
+    }
+    
+    createEndGameButtons();
+}
+
+/**
+ * Cria botões de fim de jogo
+ */
+function createEndGameButtons() {
+    const oldButtons = document.querySelectorAll('.endgame-btn');
+    oldButtons.forEach(btn => btn.remove());
+    
+    const restartBtn = document.createElement('button');
+    restartBtn.className = 'endgame-btn';
+    restartBtn.innerText = '🔄 Jogar Novamente';
+    restartBtn.style.cssText = `
+        position: fixed;
+        bottom: ${isMobileDevice() ? '80px' : '60px'};
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(45deg, #00FF00, #00CC00);
+        border: none;
+        color: #000;
+        padding: ${isMobileDevice() ? '15px 25px' : '12px 20px'};
+        border-radius: 25px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: ${isMobileDevice() ? '16px' : '14px'};
+        z-index: 1002;
+        margin-right: 10px;
+    `;
+    
+    restartBtn.onclick = () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({type: 'restartGame'}));
+            removeEndGameButtons();
+        }
+    };
+    
+    const menuBtn = document.createElement('button');
+    menuBtn.className = 'endgame-btn';
+    menuBtn.innerText = '🏠 Menu Principal';
+    menuBtn.style.cssText = `
+        position: fixed;
+        bottom: ${isMobileDevice() ? '80px' : '60px'};
+        right: 50%;
+        transform: translateX(50%);
+        background: linear-gradient(45deg, #FF5555, #CC4444);
+        border: none;
+        color: #FFF;
+        padding: ${isMobileDevice() ? '15px 25px' : '12px 20px'};
+        border-radius: 25px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: ${isMobileDevice() ? '16px' : '14px'};
+        z-index: 1002;
+        margin-left: 10px;
+    `;
+    
+    menuBtn.onclick = () => {
+        showMenu();
+        removeEndGameButtons();
+    };
+    
+    document.body.appendChild(restartBtn);
+    document.body.appendChild(menuBtn);
+}
+
+/**
+ * Remove botões de fim de jogo
+ */
+function removeEndGameButtons() {
+    const buttons = document.querySelectorAll('.endgame-btn');
+    buttons.forEach(btn => btn.remove());
+}
+
+// ========== UTILITÁRIOS ==========
+/**
+ * Gera PIN temporário de 4 dígitos
+ * @returns {string} PIN gerado
+ */
+function generateTempPIN() {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+/**
+ * Inicia jogo solo
+ * @param {string} name - Nome do jogador
+ */
+function startSolo(name) {
+    ws = new WebSocket(getWebSocketURL());
+    ws.onopen = () => {
+        ws.send(JSON.stringify({type: 'solo', name}));
+    };
+    setupWS();
+}
+
+// ========== EVENT LISTENERS DOS BOTÕES ==========
 soloBtn.onclick = () => {
     const name = prompt("Digite seu nome:", "Player");
-    if (name === null) return; // Cancelou - não iniciar jogo
+    if (name === null) return;
     
     playerName = name || "Player";
     hideElement(menuDiv);
     hideElement(menuCanvas);
     if (globalChatDiv) globalChatDiv.style.display = 'none';
     
-    // Remover botão de chat global
     const chatBtn = document.getElementById('globalChatBtn');
     if (chatBtn) chatBtn.remove();
     
@@ -979,6 +1395,8 @@ multiBtn.onclick = () => {
     nameInput.value = playerName;
 };
 
+backToHomeBtn.onclick = () => window.location.href = 'index.html';
+
 backFromMulti.onclick = showMenu;
 
 backFromLobby.onclick = () => {
@@ -991,7 +1409,6 @@ backFromLobby.onclick = () => {
     }
 };
 
-// --- Criar/Entrar em Sala ---
 createRoomBtn.onclick = () => {
     playerName = nameInput.value.trim() || "Player";
     if (!playerName) {
@@ -1000,8 +1417,8 @@ createRoomBtn.onclick = () => {
     }
     
     ws = new WebSocket(getWebSocketURL());
-    ws.onopen = () => { 
-        ws.send(JSON.stringify({type: 'join', pin: generateTempPIN(), name: playerName})); 
+    ws.onopen = () => {
+        ws.send(JSON.stringify({type: 'join', pin: generateTempPIN(), name: playerName}));
     };
     setupWS();
 };
@@ -1021,14 +1438,13 @@ joinRoomBtn.onclick = () => {
     }
     
     ws = new WebSocket(getWebSocketURL());
-    ws.onopen = () => { 
-        ws.send(JSON.stringify({type: 'join', pin: currentPIN, name: playerName})); 
+    ws.onopen = () => {
+        ws.send(JSON.stringify({type: 'join', pin: currentPIN, name: playerName}));
     };
     setupWS();
 };
 
-// --- Ready Button ---
-readyBtn.onclick = () => { 
+readyBtn.onclick = () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({type: 'ready'}));
         readyBtn.disabled = true;
@@ -1037,563 +1453,48 @@ readyBtn.onclick = () => {
     }
 };
 
-// --- Solo ---
-function startSolo(name) {
-    ws = new WebSocket(getWebSocketURL());
-    ws.onopen = () => { 
-        ws.send(JSON.stringify({type: 'solo', name})); 
-    };
-    setupWS();
-}
-
-// --- Setup WebSocket ---
-function setupWS() {
-    hideElement(multiMenuDiv);
-    showElement(lobbyDiv);
-    
-    // Criar e mostrar chat do lobby
-    createLobbyChatUI();
-    if (lobbyChatDiv) {
-        lobbyChatDiv.style.display = 'flex';
-    }
-
-    ws.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            
-            if (data.type === 'joined') {
-                playerId = data.playerId;
-                gameState = data.gameState;
-                currentPIN = data.pin;
-                pinDisplay.innerText = "PIN da Sala: " + currentPIN;
-                if (data.predefinedMessages) {
-                    predefinedMessages = data.predefinedMessages;
-                }
-                updateLobby(data);
-                if (data.chatMessages) {
-                    updateLobbyChat(data.chatMessages);
-                }
-            } 
-            else if (data.type === 'lobbyUpdate') {
-                updateLobby(data);
-            }
-            else if (data.type === 'chatUpdate') {
-                updateLobbyChat(data.chatMessages);
-            }
-            else if (data.type === 'globalChatUpdate') {
-                updateGlobalChat(data.message);
-            }
-            else if (data.type === 'update') {
-                gameState = data.gameState;
-                
-                if (gameState.temporaryMessages && gameState.temporaryMessages.length > 0) {
-                    temporaryMessages = gameState.temporaryMessages;
-                }
-                
-                if (gameState.messages && gameState.messages.length > 0) {
-                    messagesDiv.innerHTML = gameState.messages.slice(-5).join('<br>');
-                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                }
-                
-                if (gameState.status === 'playing') {
-                    hideElement(lobbyDiv);
-                    if (lobbyChatDiv) lobbyChatDiv.style.display = 'none';
-                    showElement(canvas);
-                    showElement(scoreboard);
-                    showElement(messagesDiv);
-                    
-                    // Criar e mostrar botão flutuante de mensagens
-                    if (!document.getElementById('gameMessageFloat')) {
-                        createGameMessagePanel();
-                    }
-                    
-                    // Garantir que o botão seja exibido
-                    const floatingBtn = document.getElementById('gameMessageFloat');
-                    if (floatingBtn) {
-                        floatingBtn.style.display = 'block';
-                        console.log('Botão de mensagem mostrado');
-                    } else {
-                        console.log('Erro: Botão de mensagem não encontrado');
-                    }
-                    
-                    if (!isDrawing) {
-                        isDrawing = true;
-                        draw();
-                    }
-                }
-            } 
-            else if (data.type === 'gameEnd') {
-                gameState = data.gameState;
-                isDrawing = false;
-                
-                // Ocultar botão de mensagens
-                const floatingBtn = document.getElementById('gameMessageFloat');
-                if (floatingBtn) floatingBtn.style.display = 'none';
-                
-                // Fechar modal se estiver aberto
-                const messageModal = document.getElementById('messageModal');
-                if (messageModal) messageModal.remove();
-                
-                setTimeout(() => showPodium(), 1000);
-            }
-            else if (data.type === 'timeUpdate') {
-                timeRemaining = data.timeRemaining;
-                updateTimerDisplay();
-            }
-            else if (data.type === 'error') {
-                alert(data.message);
-                hideElement(lobbyDiv);
-                if (lobbyChatDiv) lobbyChatDiv.style.display = 'none';
-                showElement(multiMenuDiv);
-            }
-        } catch (error) {
-            console.error('Erro ao processar mensagem:', error);
-        }
-    };
-    
-    ws.onerror = (error) => {
-        console.error('Erro WebSocket:', error);
-        alert('Erro de conexão. Verifique se o servidor está rodando.');
-        showMenu();
-    };
-    
-    ws.onclose = () => {
-        console.log('Conexão fechada');
-        isDrawing = false;
-        timeRemaining = 0;
-        updateTimerDisplay();
-    };
-}
-
-// --- Atualizar Lobby ---
-function updateLobby(data) {
-    playersList.innerHTML = '';
-    const players = data.players || [];
-    
-    players.forEach((p, index) => {
-        const playerItem = document.createElement('div');
-        playerItem.className = 'player-item';
-        
-        let statusIcon = p.ready ? '✅' : '⏳';
-        let botIcon = p.isBot ? ' 🤖' : ' 👤';
-        let creatorBadge = (index === 0 && !p.isBot) ? ' 👑' : '';
-        
-        playerItem.innerHTML = `${p.name}${botIcon}${creatorBadge} - ${statusIcon}`;
-        playersList.appendChild(playerItem);
-    });
-    
-    // Atualizar botão de pronto
-    const myPlayer = players.find(p => p.name === playerName);
-    if (myPlayer && myPlayer.ready) {
-        readyBtn.disabled = true;
-        readyBtn.innerText = "Pronto! ✓";
-        readyBtn.style.backgroundColor = "#00CC00";
-    } else {
-        readyBtn.disabled = false;
-        readyBtn.innerText = "Pronto";
-        readyBtn.style.backgroundColor = "#00FF00";
-    }
-}
-
-// --- Controles do Teclado ---
-document.addEventListener('keydown', e => {
-    if (!ws || !gameState || gameState.status !== 'playing') return;
-    
-    let dx = 0, dy = 0;
-    
-    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
-        dy = -GRID_SIZE;
-    } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
-        dy = GRID_SIZE;
-    } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-        dx = -GRID_SIZE;
-    } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-        dx = GRID_SIZE;
-    } else if (e.key === 'r' || e.key === 'R') {
-        if (gameState && gameState.status === 'finished' && ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({type: 'restartGame'}));
-        }
-        return;
-    } else if (e.key === 'Escape') {
-        showMenu();
-        return;
-    } else {
-        return;
-    }
-    
-    e.preventDefault();
-    sendMove(dx, dy);
+// Event listeners para inputs
+nameInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && nameInput.value.trim()) createRoomBtn.click();
 });
 
-// --- Limpar mensagens temporárias antigas ---
-function clearOldTemporaryMessages() {
+pinInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && pinInput.value.trim() && nameInput.value.trim()) joinRoomBtn.click();
+});
+
+pinInput.addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+});
+
+// Prevenir zoom no mobile
+document.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
     const now = Date.now();
-    temporaryMessages = temporaryMessages.filter(
-        msg => now - msg.timestamp < 5000
-    );
-}
+    if (now - lastTouchEnd <= 300) e.preventDefault();
+    lastTouchEnd = now;
+}, false);
 
-// --- Desenhar Jogo ---
-function draw() {
-    if (!gameState || !isDrawing) return;
-    
-    clearOldTemporaryMessages();
-    
-    // Fundo
-    ctx.fillStyle = '#222';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Grid sutil
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < canvas.width; x += GRID_SIZE) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-    }
-    for (let y = 0; y < canvas.height; y += GRID_SIZE) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-    }
-    
-    // Comida com brilho
-    ctx.shadowColor = '#FF5555';
-    ctx.shadowBlur = 15;
-    ctx.fillStyle = '#FF5555';
-    ctx.fillRect(gameState.food.x + 2, gameState.food.y + 2, GRID_SIZE - 4, GRID_SIZE - 4);
-    ctx.shadowBlur = 0;
-    
-    // Borda da comida
-    ctx.strokeStyle = '#FF0000';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(gameState.food.x, gameState.food.y, GRID_SIZE, GRID_SIZE);
-    
-    // Desenhar cobras
-    for (let id in gameState.snakes) {
-        const snake = gameState.snakes[id];
-        if (!snake.alive) continue;
-        
-        snake.body.forEach((segment, index) => {
-            if (index === 0) {
-                // Cabeça com destaque
-                ctx.fillStyle = snake.color || '#00FF00';
-                ctx.fillRect(segment.x + 1, segment.y + 1, GRID_SIZE - 2, GRID_SIZE - 2);
-                
-                // Borda da cabeça
-                ctx.strokeStyle = '#FFFFFF';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(segment.x, segment.y, GRID_SIZE, GRID_SIZE);
-                
-                // Olhos baseados na direção
-                ctx.fillStyle = '#000000';
-                const eyeSize = 4;
-                if (snake.dx > 0) {
-                    ctx.fillRect(segment.x + 13, segment.y + 4, eyeSize, eyeSize);
-                    ctx.fillRect(segment.x + 13, segment.y + 12, eyeSize, eyeSize);
-                } else if (snake.dx < 0) {
-                    ctx.fillRect(segment.x + 3, segment.y + 4, eyeSize, eyeSize);
-                    ctx.fillRect(segment.x + 3, segment.y + 12, eyeSize, eyeSize);
-                } else if (snake.dy > 0) {
-                    ctx.fillRect(segment.x + 4, segment.y + 13, eyeSize, eyeSize);
-                    ctx.fillRect(segment.x + 12, segment.y + 13, eyeSize, eyeSize);
-                } else {
-                    ctx.fillRect(segment.x + 4, segment.y + 3, eyeSize, eyeSize);
-                    ctx.fillRect(segment.x + 12, segment.y + 3, eyeSize, eyeSize);
-                }
-            } else {
-                // Corpo da cobra
-                ctx.fillStyle = snake.color || '#00FF00';
-                ctx.fillRect(segment.x + 2, segment.y + 2, GRID_SIZE - 4, GRID_SIZE - 4);
-                
-                // Borda sutil do corpo
-                ctx.strokeStyle = snake.color || '#00FF00';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(segment.x + 1, segment.y + 1, GRID_SIZE - 2, GRID_SIZE - 2);
-            }
-        });
-        
-        // Nome da cobra ou mensagem temporária acima da cabeça
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 12px Arial';
-        ctx.textAlign = 'center';
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 3;
-        const headX = snake.body[0].x + GRID_SIZE/2;
-        const headY = snake.body[0].y - 8;
-        
-        let displayText = snake.name;
-        let showTempMessage = false;
-        
-        // Verificar se há mensagem temporária válida
-        if (snake.tempMessage) {
-            const now = Date.now();
-            const elapsed = now - snake.tempMessage.timestamp;
-            
-            if (elapsed < snake.tempMessage.duration) {
-                displayText = snake.tempMessage.text;
-                showTempMessage = true;
-                ctx.fillStyle = '#FFD700'; // Cor dourada para mensagens
-                
-                // Fundo para a mensagem temporária
-                const textWidth = ctx.measureText(displayText).width;
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                ctx.fillRect(headX - textWidth/2 - 8, headY - 16, textWidth + 16, 22);
-                ctx.strokeStyle = '#FFD700';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(headX - textWidth/2 - 8, headY - 16, textWidth + 16, 22);
-                
-                ctx.fillStyle = '#FFD700';
-                ctx.strokeStyle = '#000000';
-                ctx.lineWidth = 2;
-            }
-        }
-        
-        if (!showTempMessage) {
-            ctx.fillStyle = '#FFFFFF';
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 2;
-        }
-        
-        ctx.strokeText(displayText, headX, headY);
-        ctx.fillText(displayText, headX, headY);
-    }
-    
-    // Mensagens temporárias no centro superior
-    if (temporaryMessages.length > 0) {
-        const latestMessage = temporaryMessages[temporaryMessages.length - 1];
-        
-        ctx.font = 'bold 24px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        const textWidth = ctx.measureText(latestMessage.text).width;
-        
-        // Fundo semi-transparente
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(
-            canvas.width / 2 - textWidth / 2 - 20, 
-            40, 
-            textWidth + 40, 
-            40
-        );
-        
-        // Borda dourada
-        ctx.strokeStyle = '#FFD700';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(
-            canvas.width / 2 - textWidth / 2 - 20, 
-            40, 
-            textWidth + 40, 
-            40
-        );
-        
-        // Texto da mensagem
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 3;
-        ctx.strokeText(latestMessage.text, canvas.width / 2, 60);
-        ctx.fillStyle = '#FFD700';
-        ctx.fillText(latestMessage.text, canvas.width / 2, 60);
-    }
-    
-    // Atualizar scoreboard
-    const alivePlayers = Object.values(gameState.snakes).filter(s => s.alive);
-    const playerNames = alivePlayers.map(s => s.name).join(', ');
-    scoreboard.innerHTML = `Jogadores vivos (${alivePlayers.length}): ${playerNames}`;
-    
-    // Mostrar pontuação do jogador atual
-    const mySnake = gameState.snakes[playerId];
-    if (mySnake) {
-        ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 16px Arial';
-        ctx.textAlign = 'left';
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 2;
-        const scoreText = `Sua pontuação: ${mySnake.body.length} | Vivos: ${alivePlayers.length}`;
-        ctx.strokeText(scoreText, 10, 25);
-        ctx.fillText(scoreText, 10, 25);
-    }
-    
-    if (gameState.status === 'playing') {
-        requestAnimationFrame(draw);
-    } else {
-        isDrawing = false;
-    }
-}
-
-// --- Mostrar Pódio ---
-function showPodium() {
-    // Limpar canvas
-    ctx.fillStyle = '#222';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Overlay escuro
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-    ctx.fillRect(50, 50, canvas.width - 100, canvas.height - 100);
-    
-    // Borda do overlay
-    ctx.strokeStyle = '#FFD700';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(50, 50, canvas.width - 100, canvas.height - 100);
-    
-    // Título principal
-    ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 36px Arial';
-    ctx.textAlign = 'center';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 3;
-    const title = '🏆 FIM DE JOGO 🏆';
-    ctx.strokeText(title, canvas.width / 2, 120);
-    ctx.fillText(title, canvas.width / 2, 120);
-    
-    if (gameState.leaderboard && gameState.leaderboard.length > 0) {
-        // Mostrar apenas top 3
-        const topThree = gameState.leaderboard.slice(0, 3);
-        
-        // Vencedor
-        const winner = topThree[0];
-        ctx.fillStyle = winner.isWinner ? '#00FF00' : '#FFD700';
-        ctx.font = 'bold 28px Arial';
-        const winnerText = `🥇 ${winner.name}`;
-        ctx.strokeText(winnerText, canvas.width / 2, 180);
-        ctx.fillText(winnerText, canvas.width / 2, 180);
-        
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 20px Arial';
-        const scoreText = `${winner.score} pontos`;
-        ctx.strokeText(scoreText, canvas.width / 2, 210);
-        ctx.fillText(scoreText, canvas.width / 2, 210);
-        
-        // 2º e 3º lugares se existirem
-        if (topThree.length > 1) {
-            ctx.font = 'bold 24px Arial';
-            ctx.fillStyle = '#C0C0C0';
-            const second = `🥈 ${topThree[1].name} - ${topThree[1].score}`;
-            ctx.strokeText(second, canvas.width / 2, 260);
-            ctx.fillText(second, canvas.width / 2, 260);
-        }
-        
-        if (topThree.length > 2) {
-            ctx.fillStyle = '#CD7F32';
-            const third = `🥉 ${topThree[2].name} - ${topThree[2].score}`;
-            ctx.strokeText(third, canvas.width / 2, 300);
-            ctx.fillText(third, canvas.width / 2, 300);
-        }
-    }
-    
-    // Criar botões clicáveis em vez de só instruções de texto
-    createEndGameButtons();
-}
-
-function createEndGameButtons() {
-    // Remover botões antigos se existirem
-    const oldButtons = document.querySelectorAll('.endgame-btn');
-    oldButtons.forEach(btn => btn.remove());
-    
-    // Botão Reiniciar
-    const restartBtn = document.createElement('button');
-    restartBtn.className = 'endgame-btn';
-    restartBtn.innerText = '🔄 Jogar Novamente';
-    restartBtn.style.cssText = `
-        position: fixed;
-        bottom: ${isMobileDevice() ? '80px' : '60px'};
-        left: 50%;
-        transform: translateX(-50%);
-        background: linear-gradient(45deg, #00FF00, #00CC00);
-        border: none;
-        color: #000;
-        padding: ${isMobileDevice() ? '15px 25px' : '12px 20px'};
-        border-radius: 25px;
-        cursor: pointer;
-        font-weight: bold;
-        font-size: ${isMobileDevice() ? '16px' : '14px'};
-        z-index: 1002;
-        box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
-        margin-right: 10px;
-    `;
-    
-    restartBtn.onclick = () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            console.log('Reiniciando jogo...');
-            ws.send(JSON.stringify({type: 'restartGame'}));
-            removeEndGameButtons();
-        }
-    };
-    
-    // Botão Menu
-    const menuBtn = document.createElement('button');
-    menuBtn.className = 'endgame-btn';
-    menuBtn.innerText = '🏠 Menu Principal';
-    menuBtn.style.cssText = `
-        position: fixed;
-        bottom: ${isMobileDevice() ? '80px' : '60px'};
-        right: 50%;
-        transform: translateX(50%);
-        background: linear-gradient(45deg, #FF5555, #CC4444);
-        border: none;
-        color: #FFF;
-        padding: ${isMobileDevice() ? '15px 25px' : '12px 20px'};
-        border-radius: 25px;
-        cursor: pointer;
-        font-weight: bold;
-        font-size: ${isMobileDevice() ? '16px' : '14px'};
-        z-index: 1002;
-        box-shadow: 0 0 20px rgba(255, 85, 85, 0.5);
-        margin-left: 10px;
-    `;
-    
-    menuBtn.onclick = () => {
-        showMenu();
-        removeEndGameButtons();
-    };
-    
-    document.body.appendChild(restartBtn);
-    document.body.appendChild(menuBtn);
-    
-    // Adicionar listener para toque/clique na tela também
-    const canvasClickHandler = (e) => {
-        e.preventDefault();
-        console.log('Tela tocada - reiniciando...');
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({type: 'restartGame'}));
-            removeEndGameButtons();
-            canvas.removeEventListener('click', canvasClickHandler);
-            canvas.removeEventListener('touchend', canvasClickHandler);
-        }
-    };
-    
-    canvas.addEventListener('click', canvasClickHandler);
-    canvas.addEventListener('touchend', canvasClickHandler);
-}
-
-function removeEndGameButtons() {
-    const buttons = document.querySelectorAll('.endgame-btn');
-    buttons.forEach(btn => btn.remove());
-}
-
-// --- Inicializar quando o DOM carregar ---
-function startMenuAnimation() {
-    animateMenuSnake();
-}
-
-function generateTempPIN() { 
-    return Math.floor(1000 + Math.random() * 9000).toString(); 
-}
-
-// --- Inicialização ---
+// ========== INICIALIZAÇÃO ==========
+/**
+ * Inicializa o jogo quando o DOM estiver pronto
+ */
 document.addEventListener('DOMContentLoaded', function() {
+    setupCanvas();
     setupMobileControls();
     setupSwipeControls();
     showMenu();
-    startMenuAnimation();
     
-    // Ocultar footer no mobile durante jogo para não atrapalhar
+    // Ocultar footer no mobile
     if (isMobileDevice()) {
         const footer = document.querySelector('.footer');
         if (footer) {
             footer.style.display = 'none';
         }
     }
+    
+    console.log('Jogo inicializado - Mobile:', isMobileDevice());
 });
