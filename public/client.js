@@ -61,7 +61,7 @@ let currentPIN = null;
 // Controle do jogo
 let isDrawing = false;
 let temporaryMessages = [];
-const GRID_SIZE = 20;
+let GRID_SIZE = 20; // Será ajustado dinamicamente
 let timeRemaining = 0;
 
 // Chat
@@ -91,16 +91,28 @@ function setupCanvas() {
         canvas.height = window.innerHeight;
         menuCanvas.width = window.innerWidth * 0.9;
         menuCanvas.height = window.innerHeight * 0.6;
+        
+        // Calcular GRID_SIZE ideal para resolução
+        // Para Full HD+ (1080x2460): queremos ~30-40 células na largura
+        const targetCells = 27; // Número ideal de células na largura
+        GRID_SIZE = Math.floor(canvas.width / targetCells);
+        
+        // Garantir que seja pelo menos 30px para telas grandes
+        if (GRID_SIZE < 30) GRID_SIZE = 30;
+        if (GRID_SIZE > 50) GRID_SIZE = 50; // Máximo 50px
+        
+        console.log(`Mobile Full HD+ detectado: ${canvas.width}x${canvas.height}, GRID_SIZE: ${GRID_SIZE}px`);
     } else {
         // Desktop - tamanho fixo
         canvas.width = 800;
         canvas.height = 600;
         menuCanvas.width = 800;
         menuCanvas.height = 600;
+        GRID_SIZE = 20; // Grid menor no desktop
     }
     
     ctx.imageSmoothingEnabled = false;
-    console.log('Canvas configurado:', canvas.width + 'x' + canvas.height);
+    console.log('Canvas configurado:', canvas.width + 'x' + canvas.height, 'Grid:', GRID_SIZE + 'px');
 }
 
 // ========== WEBSOCKET ==========
@@ -423,21 +435,20 @@ function draw() {
     ctx.fillStyle = '#222';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Grid sutil
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
+    // Grid VISÍVEL - linhas mais grossas para Full HD+
+    ctx.strokeStyle = isMobileDevice() ? '#444' : '#333'; // Mais claro no mobile
+    ctx.lineWidth = isMobileDevice() ? 2 : 1; // Linhas mais grossas no mobile
+    
+    ctx.beginPath();
     for (let x = 0; x < canvas.width; x += GRID_SIZE) {
-        ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, canvas.height);
-        ctx.stroke();
     }
     for (let y = 0; y < canvas.height; y += GRID_SIZE) {
-        ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(canvas.width, y);
-        ctx.stroke();
     }
+    ctx.stroke();
     
     // Comida com brilho
     ctx.shadowColor = '#FF5555';
@@ -469,19 +480,26 @@ function draw() {
                 
                 // Olhos baseados na direção
                 ctx.fillStyle = '#000000';
-                const eyeSize = 4;
+                const eyeSize = Math.max(3, Math.floor(GRID_SIZE / 5)); // Proporcional ao grid
+                const eyeOffset = Math.floor(GRID_SIZE * 0.2); // 20% do tamanho
+                const eyeSpacing = Math.floor(GRID_SIZE * 0.6); // 60% do tamanho
+                
                 if (snake.dx > 0) {
-                    ctx.fillRect(segment.x + 13, segment.y + 4, eyeSize, eyeSize);
-                    ctx.fillRect(segment.x + 13, segment.y + 12, eyeSize, eyeSize);
+                    // Olhando para direita
+                    ctx.fillRect(segment.x + GRID_SIZE - eyeOffset - eyeSize, segment.y + eyeOffset, eyeSize, eyeSize);
+                    ctx.fillRect(segment.x + GRID_SIZE - eyeOffset - eyeSize, segment.y + eyeSpacing, eyeSize, eyeSize);
                 } else if (snake.dx < 0) {
-                    ctx.fillRect(segment.x + 3, segment.y + 4, eyeSize, eyeSize);
-                    ctx.fillRect(segment.x + 3, segment.y + 12, eyeSize, eyeSize);
+                    // Olhando para esquerda
+                    ctx.fillRect(segment.x + eyeOffset, segment.y + eyeOffset, eyeSize, eyeSize);
+                    ctx.fillRect(segment.x + eyeOffset, segment.y + eyeSpacing, eyeSize, eyeSize);
                 } else if (snake.dy > 0) {
-                    ctx.fillRect(segment.x + 4, segment.y + 13, eyeSize, eyeSize);
-                    ctx.fillRect(segment.x + 12, segment.y + 13, eyeSize, eyeSize);
+                    // Olhando para baixo
+                    ctx.fillRect(segment.x + eyeOffset, segment.y + GRID_SIZE - eyeOffset - eyeSize, eyeSize, eyeSize);
+                    ctx.fillRect(segment.x + eyeSpacing, segment.y + GRID_SIZE - eyeOffset - eyeSize, eyeSize, eyeSize);
                 } else {
-                    ctx.fillRect(segment.x + 4, segment.y + 3, eyeSize, eyeSize);
-                    ctx.fillRect(segment.x + 12, segment.y + 3, eyeSize, eyeSize);
+                    // Olhando para cima
+                    ctx.fillRect(segment.x + eyeOffset, segment.y + eyeOffset, eyeSize, eyeSize);
+                    ctx.fillRect(segment.x + eyeSpacing, segment.y + eyeOffset, eyeSize, eyeSize);
                 }
             } else {
                 // Corpo da cobra
@@ -497,12 +515,13 @@ function draw() {
         
         // Nome da cobra ou mensagem temporária
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 12px Arial';
+        const fontSize = Math.max(10, Math.floor(GRID_SIZE * 0.6)); // Proporcional ao grid
+        ctx.font = `bold ${fontSize}px Arial`;
         ctx.textAlign = 'center';
         ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = Math.max(2, Math.floor(GRID_SIZE / 10));
         const headX = snake.body[0].x + GRID_SIZE/2;
-        const headY = snake.body[0].y - 8;
+        const headY = snake.body[0].y - Math.floor(GRID_SIZE * 0.4);
         
         let displayText = snake.name;
         let showTempMessage = false;
@@ -519,15 +538,17 @@ function draw() {
                 
                 // Fundo para a mensagem
                 const textWidth = ctx.measureText(displayText).width;
+                const padding = Math.floor(GRID_SIZE * 0.4);
+                const msgHeight = fontSize + padding;
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                ctx.fillRect(headX - textWidth/2 - 8, headY - 16, textWidth + 16, 22);
+                ctx.fillRect(headX - textWidth/2 - padding, headY - fontSize - padding, textWidth + padding * 2, msgHeight);
                 ctx.strokeStyle = '#FFD700';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(headX - textWidth/2 - 8, headY - 16, textWidth + 16, 22);
+                ctx.strokeRect(headX - textWidth/2 - padding, headY - fontSize - padding, textWidth + padding * 2, msgHeight);
                 
                 ctx.fillStyle = '#FFD700';
                 ctx.strokeStyle = '#000000';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = Math.max(2, Math.floor(GRID_SIZE / 10));
             }
         }
         
@@ -577,13 +598,15 @@ function draw() {
     const mySnake = gameState.snakes[playerId];
     if (mySnake) {
         ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 16px Arial';
+        const scoreFontSize = Math.max(14, Math.floor(GRID_SIZE * 0.8));
+        ctx.font = `bold ${scoreFontSize}px Arial`;
         ctx.textAlign = 'left';
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 2;
         const scoreText = `Sua pontuação: ${mySnake.body.length} | Vivos: ${alivePlayers.length}`;
-        ctx.strokeText(scoreText, 10, 25);
-        ctx.fillText(scoreText, 10, 25);
+        const scoreY = Math.max(25, GRID_SIZE + 5);
+        ctx.strokeText(scoreText, 10, scoreY);
+        ctx.fillText(scoreText, 10, scoreY);
     }
     
     if (gameState.status === 'playing') {
