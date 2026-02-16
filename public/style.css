@@ -46,16 +46,20 @@ canvas {
     height: 60vh;
     max-width: 800px;
     max-height: 600px;
+    z-index: 5; /* Abaixo do menu */
 }
 
-/* Canvas do Jogo - MOBILE: TELA CHEIA */
+/* Canvas do Jogo - MOBILE (com bordas visíveis) */
 #gameCanvas {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     z-index: 10;
+    /* Tamanho definido por JavaScript */
+    border: 3px solid #00FF00; /* Borda verde SEMPRE visível */
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
 }
 
 /* ========== MENUS ========== */
@@ -64,18 +68,19 @@ canvas {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.95);
-    border: 2px solid #00FF00;
+    background: rgba(0, 0, 0, 0.98);
+    border: 3px solid #00FF00;
     border-radius: 15px;
     padding: 30px 20px;
     color: white;
     text-align: center;
-    z-index: 100;
+    z-index: 1000; /* Garantir que fique acima do canvas */
     width: 90%;
     max-width: 400px;
-    max-height: 90vh;
+    max-height: 85vh;
     overflow-y: auto;
     display: none;
+    box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
 }
 
 #menu {
@@ -387,11 +392,7 @@ button, .menu-btn {
    📱 MOBILE - Ajustes finos
    ======================================== */
 @media (max-width: 768px) {
-    /* Canvas TELA CHEIA no mobile */
-    #gameCanvas {
-        width: 100vw !important;
-        height: 100vh !important;
-    }
+    /* Canvas controlado por JavaScript - NÃO sobrescrever aqui */
     
     /* UI compacta */
     #scoreboard {
@@ -443,11 +444,7 @@ button, .menu-btn {
    🔄 ORIENTAÇÃO LANDSCAPE (deitado)
    ======================================== */
 @media (max-width: 900px) and (orientation: landscape) {
-    /* Tela cheia mesmo em landscape */
-    #gameCanvas {
-        width: 100vw !important;
-        height: 100vh !important;
-    }
+    /* Canvas controlado por JavaScript */
     
     /* UI nas bordas */
     #scoreboard {
