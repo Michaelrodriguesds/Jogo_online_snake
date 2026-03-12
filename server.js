@@ -1,1011 +1,334 @@
-// --- Importações ---
-const express = require('express');
-const http = require('http');
-const path = require('path');
+// 🐍 SNAKE MULTIPLAYER — SERVIDOR
+// Grid canônico fixo 800×600 / GRID 20px
+// PC + Mobile usam o MESMO espaço de coordenadas
+const express   = require('express');
+const http      = require('http');
+const path      = require('path');
 const WebSocket = require('ws');
 
-// --- Configurações ---
-const GRID_SIZE = 20;
-const CANVAS_SIZE = 800;
+const GRID_SIZE   = 20;
+const CANVAS_W    = 800;
+const CANVAS_H    = 600;
+const COLS        = CANVAS_W / GRID_SIZE;  // 40
+const ROWS        = CANVAS_H / GRID_SIZE;  // 30
 const MAX_PLAYERS = 4;
-const TICK_RATE = 100;
-const AUTO_START_TIME = 120000; // 2 minutos
+const TICK_RATE   = 320;   // ms — 3.1 mov/s (velocidade clássica snake)
+const AUTO_START  = 120;   // segundos
 
-// --- Servidor HTTP + Express ---
-const app = express();
+const app    = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
-
-// Servir frontend
+const wss    = new WebSocket.Server({ server });
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Estrutura de salas ---
-let rooms = {}; // { pin: { players: [], gameState, interval, autoStartTimer } }
-let globalChatUsers = []; // Chat global do menu principal
+let rooms           = {};
+let globalChatUsers = [];
 
-// --- Mensagens pré-definidas ---
-const PREDEFINED_MESSAGES = [
-    "😎 Show!",
-    "😱 Nossa!",
-    "😂 Haha!",
-    "🔥 Fire!",
-    "💪 Força!",
-    "😢 Noooo!",
-    "🎯 Foco!",
-    "⚡ Rápido!",
-    "🏆 Top!",
-    "😵 Ops!"
+const PREDEFINED = [
+    '😎 Show!','😱 Nossa!','😂 Haha!','🔥 Fire!',
+    '💪 Força!','😢 Noooo!','🎯 Foco!','⚡ Go!',
+    '🏆 Top!','😵 Ops!'
+];
+const COLORS = [
+    '#FF6B6B','#4ECDC4','#45B7D1','#FFD93D',
+    '#C3B1E1','#98D8C8','#FFA07A','#7ED6DF'
 ];
 
-// --- Criar sala ---
+// ── SALA ──────────────────────────────────────
 function createRoom(pin) {
     rooms[pin] = {
         players: [],
         gameState: {
-            snakes: {},
-            food: { x: 0, y: 0 },
-            status: 'waiting',
-            leaderboard: [],
-            messages: [],
-            temporaryMessages: [],
-            chatMessages: [],
-            gameMessages: [] // Mensagens durante o jogo
+            snakes:{}, food:{x:0,y:0}, status:'waiting',
+            gridSize:GRID_SIZE, canvasW:CANVAS_W, canvasH:CANVAS_H,
+            leaderboard:[], messages:[], temporaryMessages:[], chatMessages:[]
         },
-        autoStartTimer: null,
-        autoStartInterval: null,
-        startTime: null,
-        interval: null,
-        isSoloMode: false
+        autoInterval:null, autoRemaining:AUTO_START,
+        startTime:null, interval:null, isSoloMode:false
     };
     spawnFood(pin);
-    console.log(`Sala ${pin} criada`);
 }
 
-// --- Spawn comida ---
 function spawnFood(pin) {
-    const room = rooms[pin];
-    if (!room) return;
-    
-    const gridCellsX = CANVAS_SIZE / GRID_SIZE;
-    const gridCellsY = CANVAS_SIZE / GRID_SIZE;
-    
-    const margin = 2;
-    const minX = margin;
-    const maxX = gridCellsX - margin - 1;
-    const minY = margin;
-    const maxY = gridCellsY - margin - 1;
-    
-    let attempts = 0;
-    let foodPos;
-    let valid = false;
-    
-    while (!valid && attempts < 100) {
-        attempts++;
-        
-        const gridX = Math.floor(Math.random() * (maxX - minX + 1)) + minX;
-        const gridY = Math.floor(Math.random() * (maxY - minY + 1)) + minY;
-        
-        foodPos = {
-            x: gridX * GRID_SIZE,
-            y: gridY * GRID_SIZE
+    const room = rooms[pin]; if (!room) return;
+    const mg = 2; let pos, ok=false, t=0;
+    while (!ok && t++<300) {
+        pos = {
+            x:(Math.floor(Math.random()*(COLS-mg*2))+mg)*GRID_SIZE,
+            y:(Math.floor(Math.random()*(ROWS-mg*2))+mg)*GRID_SIZE
         };
-        
-        valid = true;
-        for (let id in room.gameState.snakes) {
-            const snake = room.gameState.snakes[id];
-            if (snake.body.some(segment => segment.x === foodPos.x && segment.y === foodPos.y)) {
-                valid = false;
-                break;
-            }
-        }
+        ok = Object.values(room.gameState.snakes).every(s=>!s.body.some(b=>b.x===pos.x&&b.y===pos.y));
     }
-    
-    if (!valid) {
-        const gridX = Math.floor(Math.random() * (maxX - minX + 1)) + minX;
-        const gridY = Math.floor(Math.random() * (maxY - minY + 1)) + minY;
-        foodPos = {
-            x: gridX * GRID_SIZE,
-            y: gridY * GRID_SIZE
-        };
-    }
-    
-    room.gameState.food = foodPos;
+    room.gameState.food = pos||{x:GRID_SIZE*5,y:GRID_SIZE*5};
 }
 
-// --- WebSocket ---
+function createSnake(room, id, name, isBot) {
+    const mg=3, ci=Object.keys(room.gameState.snakes).length%COLORS.length;
+    let pos, ok=false, t=0;
+    while (!ok && t++<200) {
+        pos = {
+            x:(Math.floor(Math.random()*(COLS-mg*2))+mg)*GRID_SIZE,
+            y:(Math.floor(Math.random()*(ROWS-mg*2))+mg)*GRID_SIZE
+        };
+        ok = Object.values(room.gameState.snakes).every(s=>!s.body.some(b=>b.x===pos.x&&b.y===pos.y));
+    }
+    room.gameState.snakes[id] = {
+        body:[pos], dx:GRID_SIZE, dy:0,
+        color:COLORS[ci], name, alive:true, isBot,
+        deathTime:null, tempMessage:null
+    };
+}
+
+// ── WEBSOCKET ─────────────────────────────────
 wss.on('connection', ws => {
-    console.log('Nova conexão estabelecida');
-    
-    ws.on('message', msg => {
+    ws.on('message', raw => {
         try {
-            const data = JSON.parse(msg);
-            switch(data.type){
-                case 'join': handleJoin(ws, data); break;
-                case 'solo': handleSolo(ws, data); break;
-                case 'move': handleMove(ws, data); break;
-                case 'ready': handleReady(ws); break;
-                case 'startGame': handleStartGame(ws); break;
-                case 'chat': handleChat(ws, data); break;
-                case 'globalChat': handleGlobalChat(ws, data); break;
-                case 'gameMessage': handleGameMessage(ws, data); break;
-                case 'restartGame': handleRestartGame(ws); break;
+            const d = JSON.parse(raw);
+            switch(d.type) {
+                case 'join':        handleJoin(ws,d);       break;
+                case 'solo':        handleSolo(ws,d);       break;
+                case 'move':        handleMove(ws,d);       break;
+                case 'ready':       handleReady(ws);        break;
+                case 'startGame':   handleStartGame(ws);    break;
+                case 'chat':        handleChat(ws,d);       break;
+                case 'globalChat':  handleGlobalChat(ws,d); break;
+                case 'gameMessage': handleGameMsg(ws,d);    break;
+                case 'restartGame': handleRestart(ws);      break;
             }
-        } catch (error) {
-            console.error('Erro ao processar mensagem:', error);
-        }
+        } catch(e){ console.error(e); }
     });
-
-    ws.on('close', () => {
-        console.log('Conexão fechada');
-        handleDisconnect(ws);
-    });
-    
-    ws.on('error', (error) => {
-        console.error('Erro WebSocket:', error);
-    });
+    ws.on('close', ()=>handleDisconnect(ws));
+    ws.on('error', e=>console.error(e));
 });
 
-// --- Chat Global do Menu Principal ---
-function handleGlobalChat(ws, data) {
-    const chatMessage = {
-        name: data.name,
-        message: data.message,
-        timestamp: Date.now()
-    };
-    
-    // Adicionar usuário se não existir
-    if (!globalChatUsers.find(u => u.ws === ws)) {
-        globalChatUsers.push({ ws, name: data.name });
-    }
-    
-    // Broadcast para todos conectados no menu principal
-    globalChatUsers.forEach(user => {
-        if (user.ws && user.ws.readyState === WebSocket.OPEN) {
-            user.ws.send(JSON.stringify({
-                type: 'globalChatUpdate',
-                message: chatMessage
-            }));
-        }
-    });
-    
-    // Limpar usuários desconectados
-    globalChatUsers = globalChatUsers.filter(u => u.ws.readyState === WebSocket.OPEN);
+// ── JOIN ──────────────────────────────────────
+function handleJoin(ws, d) {
+    const pin=(d.pin||'').trim()||genPIN(), name=san(d.name,'Player');
+    if (!rooms[pin]) createRoom(pin);
+    const room=rooms[pin];
+    if (room.players.length>=MAX_PLAYERS) return send(ws,{type:'error',message:'Sala cheia!'});
+    if (room.gameState.status==='playing')  return send(ws,{type:'error',message:'Jogo já iniciado!'});
+    const pid=newId(); ws.playerId=pid; ws.roomPin=pin;
+    room.players.push({ws,id:pid,name,ready:false,isBot:false});
+    createSnake(room,pid,name,false);
+    send(ws,{type:'joined',playerId:pid,pin,players:room.players.map(pI),gameState:room.gameState,predefinedMessages:PREDEFINED});
+    broadcastLobby(pin);
+    if (room.players.filter(p=>!p.isBot).length===1 && !room.isSoloMode) startAutoTimer(pin);
 }
 
-// --- Mensagem durante o jogo ---
-function handleGameMessage(ws, data) {
-    const room = rooms[ws.roomPin];
-    if (!room || room.gameState.status !== 'playing') return;
-    
-    const player = room.players.find(p => p.ws === ws);
-    if (!player) return;
-    
-    const snake = room.gameState.snakes[ws.playerId];
-    if (!snake || !snake.alive) return;
-    
-    // Definir mensagem temporária na cobra
-    snake.tempMessage = {
-        text: data.message,
-        timestamp: Date.now(),
-        duration: 3000 // 3 segundos
-    };
-    
-    // Broadcast para todos na sala
-    room.players.forEach(p => {
-        if (p.ws && p.ws.readyState === WebSocket.OPEN) {
-            p.ws.send(JSON.stringify({
-                type: 'update',
-                gameState: room.gameState
-            }));
-        }
-    });
-}
-
-// --- Chat do lobby ---
-function handleChat(ws, data) {
-    const room = rooms[ws.roomPin];
-    if (!room) return;
-    
-    const player = room.players.find(p => p.ws === ws);
-    if (!player) return;
-    
-    const chatMessage = {
-        name: player.name,
-        message: data.message,
-        timestamp: Date.now()
-    };
-    
-    room.gameState.chatMessages.push(chatMessage);
-    
-    // Manter apenas as últimas 20 mensagens
-    if (room.gameState.chatMessages.length > 20) {
-        room.gameState.chatMessages.shift();
-    }
-    
-    // Broadcast para todos na sala
-    room.players.forEach(p => {
-        if (p.ws && p.ws.readyState === WebSocket.OPEN) {
-            p.ws.send(JSON.stringify({
-                type: 'chatUpdate',
-                chatMessages: room.gameState.chatMessages
-            }));
-        }
-    });
-}
-
-// --- Reiniciar jogo ---
-function handleRestartGame(ws) {
-    const room = rooms[ws.roomPin];
-    if (!room) return;
-    
-    console.log(`Reiniciando jogo na sala ${ws.roomPin}`);
-    
-    // Resetar estado do jogo
-    if (room.interval) {
-        clearInterval(room.interval);
-        room.interval = null;
-    }
-    
-    if (room.autoStartInterval) {
-        clearInterval(room.autoStartInterval);
-        room.autoStartInterval = null;
-    }
-    
-    // Resetar todos os jogadores
-    room.players.forEach(player => {
-        player.ready = false;
-    });
-    
-    // Resetar estado do jogo
-    room.gameState.status = 'waiting';
-    room.gameState.leaderboard = [];
-    room.gameState.messages = [];
-    room.gameState.temporaryMessages = [];
-    room.gameState.gameMessages = [];
-    
-    // Recriar cobras
-    for (let i = 0; i < room.players.length; i++) {
-        const player = room.players[i];
-        const margin = 5;
-        const gridCellsX = CANVAS_SIZE / GRID_SIZE;
-        const gridCellsY = CANVAS_SIZE / GRID_SIZE;
-        const minX = margin;
-        const maxX = gridCellsX - margin - 1;
-        const minY = margin;
-        const maxY = gridCellsY - margin - 1;
-        
-        const startX = (Math.floor(Math.random() * (maxX - minX + 1)) + minX) * GRID_SIZE;
-        const startY = (Math.floor(Math.random() * (maxY - minY + 1)) + minY) * GRID_SIZE;
-        
-        room.gameState.snakes[player.playerId] = {
-            body: [{x: startX, y: startY}],
-            dx: GRID_SIZE,
-            dy: 0,
-            alive: true,
-            name: player.name,
-            speed: player.isBot ? 2.2 : 3,
-            moveCooldown: 0,
-            isBot: player.isBot,
-            survivalTime: 0,
-            color: getRandomColor(),
-            tempMessage: null
-        };
-    }
-    
-    spawnFood(ws.roomPin);
-    broadcastLobby(room);
-    
-    // Reinicia timer se houver jogadores humanos e não for modo solo
-    const humanPlayers = room.players.filter(p => !p.isBot);
-    if (humanPlayers.length > 0 && !room.isSoloMode) {
-        startAutoStartTimer(ws.roomPin);
-    }
-}
-
-// --- Jogador entra em sala multiplayer ---
-function handleJoin(ws, data) {
-    const { pin, name } = data;
-    
-    if (!rooms[pin]) {
-        createRoom(pin);
-    }
-    
-    const room = rooms[pin];
-    
-    if (room.players.length >= MAX_PLAYERS) {
-        ws.send(JSON.stringify({type: 'error', message: 'Sala cheia'}));
-        return;
-    }
-
-    const playerId = generatePlayerId();
-    ws.playerId = playerId;
-    ws.roomPin = pin;
-
-    const margin = 5;
-    const gridCellsX = CANVAS_SIZE / GRID_SIZE;
-    const gridCellsY = CANVAS_SIZE / GRID_SIZE;
-    const minX = margin;
-    const maxX = gridCellsX - margin - 1;
-    const minY = margin;
-    const maxY = gridCellsY - margin - 1;
-    
-    const startX = (Math.floor(Math.random() * (maxX - minX + 1)) + minX) * GRID_SIZE;
-    const startY = (Math.floor(Math.random() * (maxY - minY + 1)) + minY) * GRID_SIZE;
-
-    room.players.push({ ws, playerId, name, isBot: false, ready: false });
-    room.gameState.snakes[playerId] = {
-        body: [{x: startX, y: startY}],
-        dx: GRID_SIZE,
-        dy: 0,
-        alive: true,
-        name,
-        speed: 3,
-        moveCooldown: 0,
-        isBot: false,
-        survivalTime: 0,
-        color: getRandomColor(),
-        tempMessage: null
-    };
-
-    ws.send(JSON.stringify({
-        type: 'joined', 
-        playerId, 
-        gameState: room.gameState, 
-        pin,
-        chatMessages: room.gameState.chatMessages,
-        predefinedMessages: PREDEFINED_MESSAGES
-    }));
-    broadcastLobby(room);
-
-    console.log(`Jogador ${name} entrou na sala ${pin}. Total: ${room.players.length} jogadores`);
-
-    // Inicia timer para início automático se for o primeiro jogador humano e não for solo
-    const humanPlayers = room.players.filter(p => !p.isBot);
-    if (humanPlayers.length === 1 && room.gameState.status === 'waiting' && !room.isSoloMode) {
-        startAutoStartTimer(pin);
-    }
-
-    // Preenche com bots se necessário (apenas se houver poucos jogadores)
-    if (room.players.length === 1 && !room.isSoloMode) {
-        addBot(pin);
-        addBot(pin);
-    }
-}
-
-// --- Função para broadcast do tempo restante ---
-function broadcastTimeRemaining(room, timeRemaining) {
-    room.players.forEach(p => {
-        if (p.ws && p.ws.readyState === WebSocket.OPEN) {
-            p.ws.send(JSON.stringify({
-                type: 'timeUpdate',
-                timeRemaining: Math.ceil(timeRemaining / 1000) // segundos
-            }));
-        }
-    });
-}
-
-// --- Timer para início automático ---
-function startAutoStartTimer(pin) {
-    const room = rooms[pin];
-    if (!room || room.autoStartInterval || room.gameState.status !== 'waiting' || room.isSoloMode) {
-        return; // Não inicia timer em modo solo
-    }
-    
-    room.startTime = Date.now();
-    
-    console.log(`Timer de início automático iniciado para sala ${pin}`);
-    
-    // Envia o tempo inicial
-    broadcastTimeRemaining(room, AUTO_START_TIME);
-    
-    room.autoStartInterval = setInterval(() => {
-        const elapsed = Date.now() - room.startTime;
-        const timeRemaining = AUTO_START_TIME - elapsed;
-        
-        // Envia atualização do tempo a cada segundo
-        broadcastTimeRemaining(room, timeRemaining);
-        
-        if (timeRemaining <= 0) {
-            clearInterval(room.autoStartInterval);
-            room.autoStartInterval = null;
-            
-            if (room.gameState.status === 'waiting') {
-                console.log(`Iniciando jogo automaticamente na sala ${pin}`);
-                room.players.forEach(player => {
-                    player.ready = true;
-                });
-                room.gameState.status = 'playing';
-                startGame(pin);
-                broadcastLobby(room);
-            }
-        }
-    }, 1000); // Atualiza a cada segundo
-}
-
-// --- Jogador solo ---
-function handleSolo(ws, data) {
-    const pin = generateTempPIN();
+// ── SOLO ──────────────────────────────────────
+function handleSolo(ws, d) {
+    const pin='s'+Date.now(), name=san(d.name,'Player');
     createRoom(pin);
-    
-    // Marca como sala solo para não iniciar timer
-    const room = rooms[pin];
-    room.isSoloMode = true;
-    
-    // Adiciona bots primeiro
-    addBot(pin);
-    addBot(pin);
-    addBot(pin);
-    
-    // Depois adiciona o jogador
-    handleJoin(ws, { pin, name: data.name });
-
-    // Inicia o jogo imediatamente no modo solo sem timer
-    setTimeout(() => {
-        if (room && room.gameState.status === 'waiting') {
-            // Cancela qualquer timer que possa ter iniciado
-            if (room.autoStartInterval) {
-                clearInterval(room.autoStartInterval);
-                room.autoStartInterval = null;
-            }
-            
-            room.players.forEach(player => {
-                player.ready = true;
-            });
-            room.gameState.status = 'playing';
-            
-            // Envia tempo zerado para esconder timer
-            broadcastTimeRemaining(room, 0);
-            
-            startGame(pin);
-            console.log(`Jogo solo iniciado na sala ${pin}`);
-        }
-    }, 300);
+    const room=rooms[pin]; room.isSoloMode=true;
+    const pid=newId(); ws.playerId=pid; ws.roomPin=pin;
+    room.players.push({ws,id:pid,name,ready:true,isBot:false});
+    createSnake(room,pid,name,false);
+    ['Bot1','Bot2','Bot3'].forEach((bn,i)=>{
+        const bid='bot'+(i+1);
+        room.players.push({ws:null,id:bid,name:bn,ready:true,isBot:true});
+        createSnake(room,bid,bn,true);
+    });
+    send(ws,{type:'joined',playerId:pid,pin,players:room.players.map(pI),gameState:room.gameState,predefinedMessages:PREDEFINED});
+    setTimeout(()=>startGame(pin),1200);
 }
 
-// --- Adiciona bot ---
-function addBot(pin) {
-    const room = rooms[pin];
-    if (!room || room.players.length >= MAX_PLAYERS) return;
-    
-    const playerId = generatePlayerId();
-    
-    const margin = 5;
-    const gridCellsX = CANVAS_SIZE / GRID_SIZE;
-    const gridCellsY = CANVAS_SIZE / GRID_SIZE;
-    const minX = margin;
-    const maxX = gridCellsX - margin - 1;
-    const minY = margin;
-    const maxY = gridCellsY - margin - 1;
-    
-    const startX = (Math.floor(Math.random() * (maxX - minX + 1)) + minX) * GRID_SIZE;
-    const startY = (Math.floor(Math.random() * (maxY - minY + 1)) + minY) * GRID_SIZE;
-
-    const botName = `Bot${room.players.filter(p => p.isBot).length + 1}`;
-    
-    room.players.push({ ws: null, playerId, name: botName, isBot: true, ready: true });
-    room.gameState.snakes[playerId] = {
-        body: [{x: startX, y: startY}],
-        dx: GRID_SIZE,
-        dy: 0,
-        alive: true,
-        name: botName,
-        speed: 2.2,
-        moveCooldown: 0,
-        isBot: true,
-        survivalTime: 0,
-        color: getRandomColor(),
-        tempMessage: null
-    };
-    
-    console.log(`Bot ${botName} adicionado à sala ${pin}`);
-}
-
-// --- Movimento jogador ---
-function handleMove(ws, data) {
-    const room = rooms[ws.roomPin];
-    if (!room || room.gameState.status !== 'playing') return;
-    
-    const snake = room.gameState.snakes[ws.playerId];
-    if (!snake || !snake.alive) return;
-
-    // Prevenir movimento reverso
-    if ((data.dx !== 0 && data.dx === -snake.dx) || (data.dy !== 0 && data.dy === -snake.dy)) {
-        return;
-    }
-    
-    snake.dx = data.dx;
-    snake.dy = data.dy;
-}
-
-// --- Ready ---
+// ── READY ─────────────────────────────────────
 function handleReady(ws) {
-    const room = rooms[ws.roomPin];
-    if (!room) return;
-    
-    const player = room.players.find(p => p.ws === ws);
-    if (player) {
-        player.ready = true;
-        console.log(`Jogador ${player.name} está pronto na sala ${ws.roomPin}`);
-    }
-
-    broadcastLobby(room);
-
-    // Verifica se todos estão prontos
-    const allReady = room.players.every(p => p.ready);
-    console.log(`Sala ${ws.roomPin}: ${room.players.filter(p => p.ready).length}/${room.players.length} prontos`);
-
-    if (allReady && room.gameState.status === 'waiting') {
-        // Cancela timer de início automático se todos estiverem prontos
-        if (room.autoStartInterval) {
-            clearInterval(room.autoStartInterval);
-            room.autoStartInterval = null;
-            broadcastTimeRemaining(room, 0);
-        }
-
-        console.log(`Todos prontos na sala ${ws.roomPin}, iniciando jogo`);
-        room.gameState.status = 'playing';
-        startGame(ws.roomPin);
-        broadcastLobby(room);
+    const room=rooms[ws.roomPin]; if (!room) return;
+    const p=room.players.find(p=>p.ws===ws); if (!p) return;
+    p.ready=true; broadcastLobby(ws.roomPin);
+    if (room.players.every(p=>p.ready)&&room.players.length>=2&&room.gameState.status==='waiting') {
+        clearAutoTimer(ws.roomPin); setTimeout(()=>startGame(ws.roomPin),500);
     }
 }
+function handleStartGame(ws) { clearAutoTimer(ws.roomPin); startGame(ws.roomPin); }
 
-// --- Iniciar jogo manualmente ---
-function handleStartGame(ws) {
-    const room = rooms[ws.roomPin];
-    if (!room) return;
-    
-    const isCreator = room.players[0] && room.players[0].ws === ws;
-    if (isCreator && room.gameState.status === 'waiting') {
-        // Cancela o timer se existir
-        if (room.autoStartInterval) {
-            clearInterval(room.autoStartInterval);
-            room.autoStartInterval = null;
-            broadcastTimeRemaining(room, 0);
-        }
-        
-        console.log(`Jogo iniciado manualmente na sala ${ws.roomPin} pelo criador`);
-        room.gameState.status = 'playing';
-        startGame(ws.roomPin);
-        broadcastLobby(room);
-    }
+// ── AUTO TIMER ────────────────────────────────
+function startAutoTimer(pin) {
+    const room=rooms[pin]; if (!room||room.autoInterval) return;
+    room.autoRemaining=AUTO_START;
+    bcastAll(pin,{type:'timeUpdate',timeRemaining:AUTO_START});
+    room.autoInterval=setInterval(()=>{
+        room.autoRemaining--;
+        bcastAll(pin,{type:'timeUpdate',timeRemaining:Math.max(0,room.autoRemaining)});
+        if (room.autoRemaining<=0) { clearAutoTimer(pin); if (room.gameState.status==='waiting') startGame(pin); }
+    },1000);
+}
+function clearAutoTimer(pin) {
+    const room=rooms[pin]; if (!room) return;
+    if (room.autoInterval) { clearInterval(room.autoInterval); room.autoInterval=null; }
+    bcastAll(pin,{type:'timeUpdate',timeRemaining:0});
 }
 
-// --- Desconexão ---
-function handleDisconnect(ws) {
-    // Remover do chat global
-    globalChatUsers = globalChatUsers.filter(u => u.ws !== ws);
-    
-    if (!ws.roomPin || !rooms[ws.roomPin]) return;
-    
-    const room = rooms[ws.roomPin];
-    const playerName = room.players.find(p => p.ws === ws)?.name || 'Jogador';
-    
-    room.players = room.players.filter(p => p.ws !== ws);
-    
-    if (ws.playerId) {
-        delete room.gameState.snakes[ws.playerId];
-    }
-    
-    console.log(`Jogador ${playerName} desconectou da sala ${ws.roomPin}`);
-    
-    // Cancela timer se não houver mais jogadores humanos
-    const humanPlayers = room.players.filter(p => !p.isBot);
-    if (room.autoStartInterval && humanPlayers.length === 0) {
-        clearInterval(room.autoStartInterval);
-        room.autoStartInterval = null;
-    }
-    
-    if (room.players.length === 0) {
-        if (room.interval) {
-            clearInterval(room.interval);
-        }
-        if (room.autoStartInterval) {
-            clearInterval(room.autoStartInterval);
-        }
-        delete rooms[ws.roomPin];
-        console.log(`Sala ${ws.roomPin} removida (sem jogadores)`);
-    } else {
-        broadcastLobby(room);
-    }
-}
-
-// --- Movimento de bot inteligente ---
-function moveBot(snake, food, room) {
-    const head = snake.body[0];
-    
-    const possibleDirections = [];
-    
-    // Direita
-    if (snake.dx !== -GRID_SIZE) {
-        const newHead = { x: head.x + GRID_SIZE, y: head.y };
-        if (isSafeMove(snake, newHead, room)) {
-            possibleDirections.push({dx: GRID_SIZE, dy: 0});
-        }
-    }
-    
-    // Esquerda
-    if (snake.dx !== GRID_SIZE) {
-        const newHead = { x: head.x - GRID_SIZE, y: head.y };
-        if (isSafeMove(snake, newHead, room)) {
-            possibleDirections.push({dx: -GRID_SIZE, dy: 0});
-        }
-    }
-    
-    // Baixo
-    if (snake.dy !== -GRID_SIZE) {
-        const newHead = { x: head.x, y: head.y + GRID_SIZE };
-        if (isSafeMove(snake, newHead, room)) {
-            possibleDirections.push({dx: 0, dy: GRID_SIZE});
-        }
-    }
-    
-    // Cima
-    if (snake.dy !== GRID_SIZE) {
-        const newHead = { x: head.x, y: head.y - GRID_SIZE };
-        if (isSafeMove(snake, newHead, room)) {
-            possibleDirections.push({dx: 0, dy: -GRID_SIZE});
-        }
-    }
-    
-    if (possibleDirections.length === 0) {
-        return { dx: snake.dx, dy: snake.dy };
-    }
-    
-    // 70% das vezes vai em direção à comida
-    if (Math.random() < 0.7) {
-        let bestDirection = null;
-        let minDistance = Infinity;
-        
-        possibleDirections.forEach(dir => {
-            const newHead = { x: head.x + dir.dx, y: head.y + dir.dy };
-            const distance = Math.abs(newHead.x - food.x) + Math.abs(newHead.y - food.y);
-            
-            if (distance < minDistance) {
-                minDistance = distance;
-                bestDirection = dir;
-            }
-        });
-        
-        if (bestDirection) {
-            return bestDirection;
-        }
-    }
-    
-    return possibleDirections[Math.floor(Math.random() * possibleDirections.length)];
-}
-
-// --- Verifica se movimento é seguro ---
-function isSafeMove(snake, newHead, room) {
-    // Aplicar wraparound primeiro
-    let wrappedHead = { ...newHead };
-    if (wrappedHead.x < 0) wrappedHead.x = CANVAS_SIZE - GRID_SIZE;
-    else if (wrappedHead.x >= CANVAS_SIZE) wrappedHead.x = 0;
-    if (wrappedHead.y < 0) wrappedHead.y = CANVAS_SIZE - GRID_SIZE;
-    else if (wrappedHead.y >= CANVAS_SIZE) wrappedHead.y = 0;
-    
-    // Verificar colisão com próprio corpo (exceto a última posição da cauda)
-    for (let i = 0; i < snake.body.length - 1; i++) {
-        if (snake.body[i].x === wrappedHead.x && snake.body[i].y === wrappedHead.y) {
-            return false;
-        }
-    }
-    
-    // Verificar colisão com outras cobras
-    for (let id in room.gameState.snakes) {
-        const otherSnake = room.gameState.snakes[id];
-        if (otherSnake === snake || !otherSnake.alive) continue;
-        
-        for (let segment of otherSnake.body) {
-            if (segment.x === wrappedHead.x && segment.y === wrappedHead.y) {
-                return false;
-            }
-        }
-    }
-    
-    return true;
-}
-
-// --- Adicionar mensagem temporária ---
-function addTemporaryMessage(room, message) {
-    const timestamp = Date.now();
-    room.gameState.temporaryMessages.push({ text: message, timestamp });
-    
-    if (room.gameState.temporaryMessages.length > 5) {
-        room.gameState.temporaryMessages.shift();
-    }
-}
-
-// --- Limpar mensagens temporárias antigas ---
-function clearOldTemporaryMessages(room) {
-    const now = Date.now();
-    room.gameState.temporaryMessages = room.gameState.temporaryMessages.filter(
-        msg => now - msg.timestamp < 5000
-    );
-}
-
-// --- Loop do jogo ---
+// ── START GAME ────────────────────────────────
 function startGame(pin) {
-    const room = rooms[pin];
-    if (!room || room.interval) return;
-    
-    console.log(`Iniciando loop do jogo na sala ${pin}`);
-    
-    room.interval = setInterval(() => {
-        const state = room.gameState;
-        if (state.status !== 'playing') {
-            clearInterval(room.interval);
-            room.interval = null;
-            return;
-        }
-
-        clearOldTemporaryMessages(room);
-
-        // Contar cobras vivas ANTES do movimento
-        const aliveSnakesBefore = Object.values(state.snakes).filter(s => s.alive);
-        
-        if (aliveSnakesBefore.length <= 1) {
-            endGame(pin, aliveSnakesBefore);
-            return;
-        }
-
-        // Processar movimento de cada cobra
-        for (let id in state.snakes) {
-            const snake = state.snakes[id];
-            if (!snake.alive) continue;
-
-            // Limpar mensagens temporárias expiradas
-            if (snake.tempMessage && Date.now() - snake.tempMessage.timestamp > snake.tempMessage.duration) {
-                snake.tempMessage = null;
-            }
-
-            // Bot AI
-            if (snake.isBot) {
-                const move = moveBot(snake, state.food, room);
-                snake.dx = move.dx;
-                snake.dy = move.dy;
-            }
-
-            // Aumentar tempo de sobrevivência
-            snake.survivalTime += TICK_RATE / 1000;
-
-            // Acelerar cobra com o tempo
-            if (snake.survivalTime >= 30) {
-                snake.speed = Math.min(snake.speed * 1.02, 8);
-                snake.survivalTime = 0;
-            }
-
-            // Cooldown de movimento
-            snake.moveCooldown -= 0.1;
-            if (snake.moveCooldown <= 0) {
-                // Calcular nova posição da cabeça
-                let newHead = { 
-                    x: snake.body[0].x + snake.dx, 
-                    y: snake.body[0].y + snake.dy 
-                };
-
-                // Wraparound nas bordas
-                if (newHead.x < 0) newHead.x = CANVAS_SIZE - GRID_SIZE;
-                else if (newHead.x >= CANVAS_SIZE) newHead.x = 0;
-                if (newHead.y < 0) newHead.y = CANVAS_SIZE - GRID_SIZE;
-                else if (newHead.y >= CANVAS_SIZE) newHead.y = 0;
-
-                // Verificar colisão com próprio corpo (não inclui a posição da cauda que será removida)
-                const bodyToCheck = snake.body.slice(0, -1); // Remove a cauda da verificação
-                if (bodyToCheck.some(seg => seg.x === newHead.x && seg.y === newHead.y)) {
-                    snake.alive = false;
-                    const deathMessage = `${snake.name} morreu!`;
-                    addTemporaryMessage(room, deathMessage);
-                    state.messages.push(deathMessage);
-                    state.leaderboard.push({name: snake.name, score: snake.body.length});
-                    continue;
-                }
-
-                // Verificar colisão com outras cobras
-                let collision = false;
-                for (let otherId in state.snakes) {
-                    if (otherId === id) continue;
-                    
-                    const other = state.snakes[otherId];
-                    if (!other.alive) continue;
-                    
-                    if (other.body.some(seg => seg.x === newHead.x && seg.y === newHead.y)) {
-                        snake.alive = false;
-                        const deathMessage = `${snake.name} morreu!`;
-                        addTemporaryMessage(room, deathMessage);
-                        state.messages.push(deathMessage);
-                        state.leaderboard.push({name: snake.name, score: snake.body.length});
-                        collision = true;
-                        break;
-                    }
-                }
-
-                if (collision || !snake.alive) continue;
-
-                // Mover cobra
-                snake.body.unshift(newHead);
-
-                // Verificar se comeu comida
-                if (newHead.x === state.food.x && newHead.y === state.food.y) {
-                    snake.speed = Math.min(snake.speed * 1.05, 8);
-                    spawnFood(pin);
-                    // Não remove a cauda quando come
-                } else {
-                    snake.body.pop();
-                }
-
-                snake.moveCooldown = 1 / snake.speed;
-            }
-        }
-
-        // Contar cobras vivas APÓS o movimento
-        const aliveSnakesAfter = Object.values(state.snakes).filter(s => s.alive);
-        
-        if (aliveSnakesAfter.length <= 1) {
-            endGame(pin, aliveSnakesAfter);
-            return;
-        }
-
-        // Broadcast do estado para todos os jogadores
-        room.players.forEach(p => {
-            if (p.ws && p.ws.readyState === WebSocket.OPEN) {
-                p.ws.send(JSON.stringify({type: 'update', gameState: state}));
-            }
-        });
-
-    }, TICK_RATE);
+    const room=rooms[pin];
+    if (!room||room.gameState.status!=='waiting') return;
+    room.gameState.status='playing'; room.startTime=Date.now();
+    bcastAll(pin,{type:'update',gameState:room.gameState});
+    room.interval=setInterval(()=>gameLoop(pin),TICK_RATE);
+    console.log('Jogo iniciado → sala '+pin);
 }
 
-// --- Finalizar jogo ---
-function endGame(pin, aliveSnakes) {
-    const room = rooms[pin];
-    if (!room) return;
-    
-    const state = room.gameState;
-    state.status = 'finished';
-    
-    console.log(`Finalizando jogo na sala ${pin}. Cobras vivas: ${aliveSnakes.length}`);
-    
-    // Criar ranking baseado na ordem de eliminação (último vivo = 1º lugar)
-    const finalRanking = [];
-    
-    if (aliveSnakes.length === 1) {
-        const winner = aliveSnakes[0];
-        finalRanking.push({
-            name: winner.name, 
-            score: winner.body.length,
-            position: 1,
-            isWinner: true
-        });
-        const winMessage = `🏆 ${winner.name} venceu o jogo! 🏆`;
-        addTemporaryMessage(room, winMessage);
-        state.messages.push(winMessage);
-    } else if (aliveSnakes.length === 0) {
-        const drawMessage = "🤝 Empate! Ninguém sobreviveu!";
-        addTemporaryMessage(room, drawMessage);
-        state.messages.push(drawMessage);
+// ── GAME LOOP ─────────────────────────────────
+function gameLoop(pin) {
+    const room=rooms[pin];
+    if (!room||room.gameState.status!=='playing') return;
+    const gs=room.gameState, now=Date.now();
+
+    for (const id in gs.snakes) {
+        const s=gs.snakes[id]; if (!s.alive) continue;
+
+        // Bot AI
+        if (s.isBot) { const m=botMove(s,gs.food,gs.snakes); s.dx=m.dx; s.dy=m.dy; }
+
+        // Wraparound no espaço canônico 800×600
+        const head = {
+            x:((s.body[0].x+s.dx)+CANVAS_W)%CANVAS_W,
+            y:((s.body[0].y+s.dy)+CANVAS_H)%CANVAS_H
+        };
+
+        if (head.x===gs.food.x&&head.y===gs.food.y) { s.body.unshift(head); spawnFood(pin); }
+        else { s.body.unshift(head); s.body.pop(); }
+
+        // Colisões
+        let dead=s.body.slice(1).some(b=>b.x===head.x&&b.y===head.y);
+        if (!dead) for (const oid in gs.snakes) {
+            if (oid===id||!gs.snakes[oid].alive) continue;
+            if (gs.snakes[oid].body.some(b=>b.x===head.x&&b.y===head.y)) { dead=true; break; }
+        }
+        if (dead) {
+            s.alive=false; s.deathTime=now;
+            gs.temporaryMessages.push({text:'💀 '+s.name+' morreu!',timestamp:now});
+            if (gs.temporaryMessages.length>5) gs.temporaryMessages.shift();
+            bcastAll(pin,{type:'playerDied',playerId:id,playerName:s.name,color:s.color,timestamp:now});
+        }
+        if (s.tempMessage&&now-s.tempMessage.timestamp>s.tempMessage.duration) s.tempMessage=null;
     }
-    
-    // Adicionar cobras já mortas ao ranking (ordem reversa = quem morreu por último fica melhor colocado)
-    const deadSnakes = state.leaderboard.slice().reverse(); // Inverter para quem morreu por último ficar em melhor posição
-    deadSnakes.forEach((snake, index) => {
-        finalRanking.push({
-            name: snake.name,
-            score: snake.score,
-            position: finalRanking.length + 1,
-            isWinner: false
-        });
+
+    gs.temporaryMessages=gs.temporaryMessages.filter(m=>now-m.timestamp<5000);
+    const alive=Object.values(gs.snakes).filter(s=>s.alive);
+    if (alive.length<=1) { endGame(pin); return; }
+    bcastAll(pin,{type:'update',gameState:gs});
+}
+
+// ── BOT AI ────────────────────────────────────
+function botMove(snake, food, snakes) {
+    const h=snake.body[0];
+    const dirs=[{dx:GRID_SIZE,dy:0},{dx:-GRID_SIZE,dy:0},{dx:0,dy:GRID_SIZE},{dx:0,dy:-GRID_SIZE}];
+    const safe=dirs.filter(d=>{
+        if (d.dx===-snake.dx&&d.dy===-snake.dy) return false;
+        const nx=((h.x+d.dx)+CANVAS_W)%CANVAS_W, ny=((h.y+d.dy)+CANVAS_H)%CANVAS_H;
+        return !Object.values(snakes).some(s=>s.alive&&s.body.some(b=>b.x===nx&&b.y===ny));
     });
-    
-    // Adicionar qualquer cobra viva restante
-    aliveSnakes.forEach(snake => {
-        if (!finalRanking.find(r => r.name === snake.name)) {
-            finalRanking.push({
-                name: snake.name,
-                score: snake.body.length,
-                position: finalRanking.length + 1,
-                isWinner: false
-            });
-        }
-    });
-    
-    // Ordenar por posição e depois por pontuação
-    finalRanking.sort((a, b) => {
-        if (a.position !== b.position) return a.position - b.position;
-        return b.score - a.score;
-    });
-    
-    // Manter apenas top 3 para o pódio
-    state.leaderboard = finalRanking.slice(0, 3);
-    
-    // Broadcast final
-    room.players.forEach(p => {
-        if (p.ws && p.ws.readyState === WebSocket.OPEN) {
-            p.ws.send(JSON.stringify({type: 'gameEnd', gameState: state}));
-        }
-    });
-    
-    // Limpar intervalo
-    if (room.interval) {
-        clearInterval(room.interval);
-        room.interval = null;
+    if (!safe.length) return {dx:snake.dx,dy:snake.dy};
+    if (Math.random()<0.8) {
+        safe.sort((a,b)=>(Math.abs(h.x+a.dx-food.x)+Math.abs(h.y+a.dy-food.y))-(Math.abs(h.x+b.dx-food.x)+Math.abs(h.y+b.dy-food.y)));
+        return safe[0];
     }
-    
-    console.log(`Jogo finalizado na sala ${pin}. Ranking: ${finalRanking.map(r => `${r.position}º ${r.name}`).join(', ')}`);
+    return safe[Math.floor(Math.random()*safe.length)];
 }
 
-// --- Lobby ---
-function broadcastLobby(room) {
-    const lobbyData = {
-        type: 'lobbyUpdate',
-        players: room.players.map(p => ({
-            name: p.name,
-            isBot: p.isBot,
-            ready: p.ready
-        })),
-        gameState: {
-            status: room.gameState.status
-        }
-    };
-    
-    room.players.forEach(p => {
-        if (p.ws && p.ws.readyState === WebSocket.OPEN) {
-            p.ws.send(JSON.stringify(lobbyData));
-        }
-    });
+// ── FIM DE JOGO ───────────────────────────────
+function endGame(pin) {
+    const room=rooms[pin]; if (!room) return;
+    clearInterval(room.interval); room.interval=null;
+    const et=Date.now(), sn=room.gameState.snakes;
+    const alive=Object.values(sn).filter(s=>s.alive)
+        .map(s=>({name:s.name,score:s.body.length,alive:true,survivalTime:room.startTime?Math.floor((et-room.startTime)/1000):0}))
+        .sort((a,b)=>b.score-a.score);
+    const dead=Object.values(sn).filter(s=>!s.alive)
+        .map(s=>({name:s.name,score:s.body.length,alive:false,
+            survivalTime:(s.deathTime&&room.startTime)?Math.floor((s.deathTime-room.startTime)/1000):0,
+            deathTime:s.deathTime||0}))
+        .sort((a,b)=>b.deathTime-a.deathTime);
+    room.gameState.leaderboard=[...alive,...dead].slice(0,4);
+    room.gameState.status='ended';
+    console.log('🏆 Fim sala '+pin+' – '+(room.gameState.leaderboard[0]?.name));
+    bcastAll(pin,{type:'gameEnd',gameState:room.gameState});
 }
 
-// --- Utilitários ---
-function generateTempPIN() { 
-    return Math.floor(1000 + Math.random() * 9000).toString(); 
+// ── MOVE ──────────────────────────────────────
+function handleMove(ws, d) {
+    const room=rooms[ws.roomPin]; if (!room||room.gameState.status!=='playing') return;
+    const s=room.gameState.snakes[ws.playerId]; if (!s||!s.alive) return;
+    const dx=Number(d.dx), dy=Number(d.dy);
+    const v=[GRID_SIZE,-GRID_SIZE,0];
+    if (!v.includes(dx)||!v.includes(dy)||(dx===0&&dy===0)) return;
+    if ((s.dx===GRID_SIZE&&dx===-GRID_SIZE)||(s.dx===-GRID_SIZE&&dx===GRID_SIZE)) return;
+    if ((s.dy===GRID_SIZE&&dy===-GRID_SIZE)||(s.dy===-GRID_SIZE&&dy===GRID_SIZE)) return;
+    s.dx=dx; s.dy=dy;
 }
 
-function generatePlayerId() {
-    return Date.now() + Math.random().toString(36).substr(2, 9);
+// ── CHAT ──────────────────────────────────────
+function handleGameMsg(ws, d) {
+    const room=rooms[ws.roomPin]; if (!room||room.gameState.status!=='playing') return;
+    const s=room.gameState.snakes[ws.playerId]; if (!s||!s.alive) return;
+    s.tempMessage={text:san(d.message,'').substring(0,40),timestamp:Date.now(),duration:3500};
+    bcastAll(ws.roomPin,{type:'update',gameState:room.gameState});
+}
+function handleChat(ws, d) {
+    const room=rooms[ws.roomPin]; if (!room) return;
+    const player=room.players.find(p=>p.ws===ws); if (!player) return;
+    const msg={name:player.name,message:san(d.message,'').substring(0,120),timestamp:Date.now()};
+    room.gameState.chatMessages.push(msg);
+    if (room.gameState.chatMessages.length>40) room.gameState.chatMessages.shift();
+    bcastAll(ws.roomPin,{type:'chatUpdate',message:msg});
+}
+function handleGlobalChat(ws, d) {
+    const msg={name:san(d.name,'Anon').substring(0,15),message:san(d.message,'').substring(0,120),timestamp:Date.now()};
+    if (!globalChatUsers.find(u=>u.ws===ws)) globalChatUsers.push({ws,name:msg.name});
+    const payload=JSON.stringify({type:'globalChatUpdate',message:msg});
+    globalChatUsers.forEach(u=>{if(u.ws?.readyState===WebSocket.OPEN)u.ws.send(payload);});
+    globalChatUsers=globalChatUsers.filter(u=>u.ws.readyState===WebSocket.OPEN);
 }
 
-function getRandomColor() {
-    const colors = [
-        '#FF5555', '#55FF55', '#5555FF', '#FFFF55',
-        '#FF55FF', '#55FFFF', '#FFAA00', '#AA00FF',
-        '#FF8080', '#80FF80', '#8080FF', '#FFFF80'
-    ];
-    return colors[Math.floor(Math.random() * colors.length)];
+// ── RESTART / DISCONNECT ──────────────────────
+function handleRestart(ws) {
+    const room=rooms[ws.roomPin]; if (!room||room.gameState.status!=='ended') return;
+    Object.assign(room.gameState,{status:'waiting',snakes:{},leaderboard:[],messages:[],temporaryMessages:[]});
+    room.startTime=null;
+    room.players.forEach(p=>{createSnake(room,p.id,p.name,p.isBot); p.ready=p.isBot;});
+    spawnFood(ws.roomPin); broadcastLobby(ws.roomPin);
+    if (room.isSoloMode) setTimeout(()=>startGame(ws.roomPin),1200); else startAutoTimer(ws.roomPin);
 }
-
-// --- Limpeza periódica de salas vazias ---
-setInterval(() => {
-    for (let pin in rooms) {
-        const room = rooms[pin];
-        const humanPlayers = room.players.filter(p => !p.isBot && p.ws && p.ws.readyState === WebSocket.OPEN);
-        
-        if (humanPlayers.length === 0) {
-            if (room.interval) {
-                clearInterval(room.interval);
-            }
-            if (room.autoStartInterval) {
-                clearInterval(room.autoStartInterval);
-            }
-            delete rooms[pin];
-            console.log(`Sala ${pin} removida automaticamente (inativa)`);
-        }
+function handleDisconnect(ws) {
+    globalChatUsers=globalChatUsers.filter(u=>u.ws!==ws);
+    const pin=ws.roomPin; if (!pin||!rooms[pin]) return;
+    const room=rooms[pin], idx=room.players.findIndex(p=>p.ws===ws); if (idx===-1) return;
+    console.log(room.players[idx].name+' saiu da sala '+pin);
+    room.players.splice(idx,1); delete room.gameState.snakes[ws.playerId];
+    if (!room.players.filter(p=>!p.isBot).length) {
+        if (room.interval) clearInterval(room.interval);
+        if (room.autoInterval) clearInterval(room.autoInterval);
+        delete rooms[pin];
+    } else {
+        broadcastLobby(pin);
+        if (room.gameState.status==='playing'&&Object.values(room.gameState.snakes).filter(s=>s.alive).length<=1) endGame(pin);
     }
-}, 60000); // Verifica a cada minuto
+}
 
-// --- Middleware de log para debugging ---
-app.get('/api/rooms', (req, res) => {
-    const roomsInfo = Object.keys(rooms).map(pin => ({
-        pin,
-        players: rooms[pin].players.length,
-        status: rooms[pin].gameState.status,
-        humanPlayers: rooms[pin].players.filter(p => !p.isBot).length
-    }));
-    res.json(roomsInfo);
-});
+// ── HELPERS ───────────────────────────────────
+function broadcastLobby(pin) {
+    const room=rooms[pin]; if (!room) return;
+    bcastAll(pin,{type:'lobbyUpdate',players:room.players.map(pI),gameState:{status:room.gameState.status}});
+}
+function bcastAll(pin, obj) {
+    const room=rooms[pin]; if (!room) return;
+    const payload=JSON.stringify(obj);
+    room.players.forEach(p=>{if(p.ws?.readyState===WebSocket.OPEN)p.ws.send(payload);});
+}
+function send(ws,obj)  {if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(obj));}
+function pI(p)         {return{name:p.name,ready:p.ready,isBot:p.isBot};}
+function newId()       {return 'p'+Date.now()+Math.random().toString(36).substr(2,5);}
+function genPIN()      {return Math.floor(1000+Math.random()*9000).toString();}
+function san(v,fb)     {return(typeof v==='string'?v.trim():'')||fb;}
 
-// --- Inicia servidor ---
-const PORT = process.env.PORT || 8080;
-server.listen(PORT, () => {
-    console.log(`🐍 Servidor Snake rodando na porta ${PORT}`);
-    console.log(`📱 Acesse: http://localhost:${PORT}`);
-    console.log(`📊 Debug: http://localhost:${PORT}/api/rooms`);
-});
+const PORT=process.env.PORT||8080;
+server.listen(PORT,()=>console.log(`
+╔══════════════════════════════════════════╗
+║  🐍 SNAKE MULTIPLAYER                   ║
+║  Grid: ${CANVAS_W}x${CANVAS_H} / ${GRID_SIZE}px — ${COLS}x${ROWS} células   ║
+║  Tick: ${TICK_RATE}ms | PC+Mobile sync ✅        ║
+║  Porta: ${PORT}                              ║
+╚══════════════════════════════════════════╝`));

@@ -2,595 +2,64 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Snake Multiplayer - Jogo Online</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Snake Multiplayer</title>
+    <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
-            color: white;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        .header {
-            text-align: center;
-            padding: 30px 20px;
-            background: rgba(0, 0, 0, 0.3);
-            backdrop-filter: blur(10px);
-            border-bottom: 2px solid #00FF00;
-            position: relative;
-        }
-
-        .game-title {
-            font-size: 3.5em;
-            color: #00FF00;
-            text-shadow: 0 0 30px rgba(0, 255, 0, 0.8);
-            margin-bottom: 10px;
-            font-weight: bold;
-            animation: titlePulse 2s ease-in-out infinite;
-        }
-
-        .game-subtitle {
-            font-size: 1.2em;
-            color: #FFD700;
-            margin-bottom: 20px;
-        }
-
-        @keyframes titlePulse {
-            0%, 100% { text-shadow: 0 0 30px rgba(0, 255, 0, 0.8); }
-            50% { text-shadow: 0 0 50px rgba(0, 255, 0, 1), 0 0 80px rgba(0, 255, 0, 0.5); }
-        }
-
-        .main-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 30px 20px;
-            min-height: calc(100vh - 200px);
-        }
-
-        .game-modes {
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(15px);
-            border: 2px solid #00FF00;
-            border-radius: 20px;
-            padding: 30px;
-            text-align: center;
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
-        }
-
-        .game-modes h2 {
-            color: #00FF00;
-            font-size: 2em;
-            margin-bottom: 30px;
-            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
-        }
-
-        .mode-btn {
-            display: block;
-            width: 100%;
-            padding: 20px;
-            margin: 15px 0;
-            background: linear-gradient(45deg, #00FF00, #00CC00);
-            border: none;
-            border-radius: 15px;
-            color: #000;
-            font-size: 1.3em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            box-shadow: 0 5px 15px rgba(0, 255, 0, 0.3);
-        }
-
-        .mode-btn:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 255, 0, 0.5);
-            background: linear-gradient(45deg, #00CC00, #00AA00);
-        }
-
-        .mode-btn.multiplayer {
-            background: linear-gradient(45deg, #FFD700, #FFA500);
-            box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
-        }
-
-        .mode-btn.multiplayer:hover {
-            background: linear-gradient(45deg, #FFA500, #FF8C00);
-            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.5);
-        }
-
-        .global-chat-section {
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(15px);
-            border: 2px solid #00FF00;
-            border-radius: 20px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
-        }
-
-        .global-chat-section h3 {
-            color: #00FF00;
-            font-size: 1.5em;
-            margin-bottom: 15px;
-            text-align: center;
-            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
-        }
-
-        .chat-messages {
-            flex: 1;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            overflow-y: auto;
-            max-height: 300px;
-            min-height: 200px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .chat-message {
-            margin-bottom: 10px;
-            padding: 8px 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            border-left: 4px solid #00FF00;
-            animation: messageSlide 0.3s ease-out;
-        }
-
-        .chat-message strong {
-            color: #FFD700;
-        }
-
-        @keyframes messageSlide {
-            from { opacity: 0; transform: translateX(-10px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        .chat-input-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        .chat-input {
-            flex: 1;
-            padding: 12px;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            font-size: 14px;
-            transition: all 0.3s ease;
-        }
-
-        .chat-input::placeholder {
-            color: rgba(255, 255, 255, 0.5);
-        }
-
-        .chat-input:focus {
-            outline: none;
-            border-color: #00FF00;
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
-        }
-
-        .chat-send-btn {
-            padding: 12px 18px;
-            border-radius: 10px;
-            background: linear-gradient(45deg, #00FF00, #00CC00);
-            border: none;
-            color: #000;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s ease;
-        }
-
-        .chat-send-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
-        }
-
-        .connection-status {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .status-connected { background: #00CC00; color: #000; }
-        .status-connecting { background: #FFAA00; color: #000; }
-        .status-disconnected { background: #FF5555; color: #FFF; }
-
-        .nav-links {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 30px;
-        }
-
-        .nav-link {
-            display: block;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 10px;
-            color: white;
-            text-decoration: none;
-            text-align: center;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(5px);
-        }
-
-        .nav-link:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 255, 255, 0.1);
-        }
-
-        .footer {
-            text-align: center;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.5);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            margin-top: 40px;
-        }
-
-        @media (max-width: 768px) {
-            .main-container {
-                grid-template-columns: 1fr;
-                gap: 20px;
-                padding: 20px 15px;
-            }
-
-            .game-title {
-                font-size: 2.5em;
-            }
-
-            .nav-links {
-                grid-template-columns: 1fr;
-            }
-
-            .chat-messages {
-                max-height: 200px;
-                min-height: 150px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .game-title {
-                font-size: 2em;
-            }
-
-            .mode-btn {
-                font-size: 1.1em;
-                padding: 15px;
-            }
-
-            .header {
-                padding: 20px 15px;
-            }
-
-            .game-modes, .global-chat-section {
-                padding: 20px 15px;
-            }
-        }
-
-        .fade-in {
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .chat-messages::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .chat-messages::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
-        }
-
-        .chat-messages::-webkit-scrollbar-thumb {
-            background: rgba(0, 255, 0, 0.5);
-            border-radius: 4px;
-        }
-
-        .chat-messages::-webkit-scrollbar-thumb:hover {
-            background: rgba(0, 255, 0, 0.7);
-        }
-    </style>
 </head>
 <body>
-    <header class="header fade-in">
-        <div class="connection-status status-disconnected" id="connectionStatus">Offline</div>
-        <h1 class="game-title">🐍 SNAKE MULTIPLAYER</h1>
-        <p class="game-subtitle">Jogue online com amigos ou sozinho contra bots inteligentes</p>
-    </header>
+    <!-- ========== CANVAS ========== -->
+    <canvas id="gameCanvas"></canvas>
 
-    <main class="main-container">
-        <section class="game-modes fade-in">
-            <h2>🎮 Modos de Jogo</h2>
+    <!-- ========== MENU ÚNICO ========== -->
+    <div id="menu" class="menu-unified">
+        <canvas id="menuCanvas" class="menu-snake-bg"></canvas>
+        
+        <div class="menu-content">
+            <h1 class="game-title">🐍 SNAKE<br/>MULTIPLAYER</h1>
             
-            <button class="mode-btn" id="soloBtn">
-                🎯 Modo Solo
-                <div style="font-size: 0.8em; margin-top: 5px; color: #333;">
-                    Jogue contra 3 bots inteligentes
-                </div>
-            </button>
+            <!-- Botões do Jogo -->
+            <button id="soloBtn" class="menu-btn">🎮 Jogar Solo</button>
+            <button id="multiBtn" class="menu-btn">👥 Multiplayer</button>
             
-            <button class="mode-btn multiplayer" id="multiBtn">
-                👥 Modo Multiplayer  
-                <div style="font-size: 0.8em; margin-top: 5px; color: #333;">
-                    Até 4 jogadores online
-                </div>
-            </button>
+            <!-- Demais Conteúdos -->
+            <a href="instructions.html" class="menu-btn info-btn">📖 Como Jogar</a>
+            <a href="feedback.html" class="menu-btn info-btn">💡 Dicas & Suporte</a>
+            <a href="reviews.html" class="menu-btn info-btn">⭐ Avaliações</a>
+            <a href="contact.html" class="menu-btn info-btn">📞 Contatos</a>
+        </div>
+    </div>
 
-            <div class="nav-links">
-                <a href="instructions.html" class="nav-link">
-                    📖 Como Jogar
-                </a>
-                <a href="feedback.html" class="nav-link">
-                    💡 Dicas & Suporte
-                </a>
-                <a href="reviews.html" class="nav-link">
-                    ⭐ Avaliações
-                </a>
-                <a href="contact.html" class="nav-link">
-                    📞 Contatos
-                </a>
-            </div>
-        </section>
+    <!-- Menu Multiplayer -->
+    <div id="multiMenu" class="menu-container">
+        <h2>👥 Multiplayer</h2>
+        <input id="nameInput" type="text" placeholder="Seu Nome" maxlength="15">
+        <button id="createRoomBtn" class="menu-btn">🆕 Criar Sala</button>
+        <input id="pinInput" type="text" placeholder="PIN da Sala" maxlength="4" inputmode="numeric">
+        <button id="joinRoomBtn" class="menu-btn">🔗 Entrar na Sala</button>
+        <button id="backFromMulti" class="menu-btn back-btn">← Voltar</button>
+    </div>
 
-        <section class="global-chat-section fade-in">
-            <h3>💬 Chat Global</h3>
-            
-            <div class="chat-messages" id="globalChatMessages">
-                <div class="chat-message">
-                    <strong>Sistema:</strong> Bem-vindo ao Snake Multiplayer! Digite seu nome e comece a conversar.
-                </div>
-            </div>
+    <!-- Lobby -->
+    <div id="lobby" class="menu-container">
+        <h2>🏠 Lobby</h2>
+        <div id="pinDisplay"></div>
+        <div id="playersList"></div>
+        <button id="readyBtn" class="menu-btn">✅ Pronto</button>
+        <button id="backFromLobby" class="menu-btn back-btn">← Voltar</button>
+    </div>
 
-            <div class="chat-input-group">
-                <input 
-                    type="text" 
-                    id="playerNameInput" 
-                    class="chat-input" 
-                    placeholder="Digite seu nome para o chat..."
-                    maxlength="15"
-                >
-                <button class="chat-send-btn" id="setNameBtn">
-                    👤 Definir Nome
-                </button>
-            </div>
+    <!-- UI do Jogo -->
+    <div id="scoreboard"></div>
+    <div id="messages"></div>
+    <div id="timerDisplay"></div>
+    
+    <!-- Botão QUIT -->
+    <button id="quitBtn" class="quit-btn">🚪 SAIR</button>
 
-            <div class="chat-input-group" id="chatGroup" style="display: none; margin-top: 10px;">
-                <input 
-                    type="text" 
-                    id="globalChatInput" 
-                    class="chat-input" 
-                    placeholder="Digite sua mensagem..."
-                    maxlength="100"
-                >
-                <button class="chat-send-btn" id="sendGlobalChatBtn">
-                    📤 Enviar
-                </button>
-            </div>
-        </section>
-    </main>
+    <!-- Controles Mobile -->
+    <div id="mobileControls" class="mobile-controls"></div>
 
-    <footer class="footer">
-        <p>&copy; 2025 Snake Multiplayer - Desenvolvido por MRS</p>
-        <p style="margin-top: 5px; font-size: 0.9em; color: #aaa;">Jogue responsavelmente e divirta-se!</p>
-    </footer>
-
-    <script>
-        let chatPlayerName = '';
-        let ws = null;
-        let reconnectAttempts = 0;
-        const maxReconnectAttempts = 5;
-
-        const soloBtn = document.getElementById('soloBtn');
-        const multiBtn = document.getElementById('multiBtn');
-        const playerNameInput = document.getElementById('playerNameInput');
-        const setNameBtn = document.getElementById('setNameBtn');
-        const globalChatInput = document.getElementById('globalChatInput');
-        const sendGlobalChatBtn = document.getElementById('sendGlobalChatBtn');
-        const globalChatMessages = document.getElementById('globalChatMessages');
-        const chatGroup = document.getElementById('chatGroup');
-        const connectionStatus = document.getElementById('connectionStatus');
-
-        const getWebSocketURL = () => {
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                return 'ws://localhost:8080';
-            } else {
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                return `${protocol}//${window.location.host}`;
-            }
-        };
-
-        function updateConnectionStatus(status, message = '') {
-            connectionStatus.className = `connection-status status-${status}`;
-            const statusText = {
-                'connected': 'Online',
-                'connecting': 'Conectando...',
-                'disconnected': 'Offline'
-            };
-            connectionStatus.textContent = statusText[status] + (message ? ` ${message}` : '');
-        }
-
-        function connectGlobalChat() {
-            if (!chatPlayerName) return;
-
-            updateConnectionStatus('connecting');
-            ws = new WebSocket(getWebSocketURL());
-            
-            ws.onopen = () => {
-                console.log('Conectado ao chat global');
-                updateConnectionStatus('connected');
-                reconnectAttempts = 0;
-                
-                // Enviar mensagem de entrada CORRIGIDA
-                ws.send(JSON.stringify({
-                    type: 'globalChat',
-                    name: 'Sistema',
-                    message: `${chatPlayerName} entrou no chat!`
-                }));
-            };
-
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('Mensagem recebida:', data);
-                    
-                    // CORRIGIDO: Processar mensagem global corretamente
-                    if (data.type === 'globalChatUpdate') {
-                        addChatMessage(data.message.name, data.message.message);
-                    }
-                } catch (error) {
-                    console.error('Erro ao processar mensagem:', error);
-                }
-            };
-
-            ws.onerror = (error) => {
-                console.error('Erro no WebSocket:', error);
-                updateConnectionStatus('disconnected', 'Erro');
-            };
-
-            ws.onclose = (event) => {
-                console.log('Conexão do chat global fechada. Código:', event.code);
-                updateConnectionStatus('disconnected');
-                
-                // Reconectar automaticamente se não foi intencional
-                if (reconnectAttempts < maxReconnectAttempts && chatPlayerName) {
-                    reconnectAttempts++;
-                    console.log(`Tentativa de reconexão ${reconnectAttempts}/${maxReconnectAttempts}`);
-                    setTimeout(() => {
-                        connectGlobalChat();
-                    }, 3000 + (reconnectAttempts * 1000));
-                }
-            };
-        }
-
-        // CORRIGIDO: Definir nome e conectar ao chat
-        setNameBtn.onclick = () => {
-            const name = playerNameInput.value.trim();
-            if (name && name.length >= 2) {
-                chatPlayerName = name;
-                localStorage.setItem('chatPlayerName', name);
-                
-                playerNameInput.style.display = 'none';
-                setNameBtn.style.display = 'none';
-                chatGroup.style.display = 'flex';
-                
-                // Conectar ao WebSocket APENAS após definir nome
-                connectGlobalChat();
-                
-                console.log('Nome definido:', chatPlayerName);
-            } else {
-                alert('Digite um nome com pelo menos 2 caracteres!');
-            }
-        };
-
-        // CORRIGIDO: Enviar mensagem global
-        function sendGlobalMessage() {
-            const message = globalChatInput.value.trim();
-            if (message && chatPlayerName && ws && ws.readyState === WebSocket.OPEN) {
-                console.log('Enviando mensagem:', message);
-                
-                // ENVIAR MENSAGEM CORRETA PARA O SERVIDOR
-                ws.send(JSON.stringify({
-                    type: 'globalChat',
-                    name: chatPlayerName,
-                    message: message
-                }));
-                
-                globalChatInput.value = '';
-            } else {
-                console.log('Não é possível enviar mensagem:', {
-                    message: !!message,
-                    chatPlayerName: !!chatPlayerName,
-                    ws: !!ws,
-                    wsReady: ws ? ws.readyState === WebSocket.OPEN : false
-                });
-            }
-        }
-
-        sendGlobalChatBtn.onclick = sendGlobalMessage;
-
-        globalChatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendGlobalMessage();
-            }
-        });
-
-        playerNameInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                setNameBtn.click();
-            }
-        });
-
-        function addChatMessage(name, message) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'chat-message';
-            messageDiv.innerHTML = `<strong>${escapeHtml(name)}:</strong> ${escapeHtml(message)}`;
-            
-            globalChatMessages.appendChild(messageDiv);
-            globalChatMessages.scrollTop = globalChatMessages.scrollHeight;
-            
-            // Manter apenas últimas 50 mensagens
-            while (globalChatMessages.children.length > 50) {
-                globalChatMessages.removeChild(globalChatMessages.firstChild);
-            }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Botões de jogo - SEMPRE pedem nome separado
-        soloBtn.onclick = () => {
-            window.location.href = 'game.html?mode=solo';
-        };
-
-        multiBtn.onclick = () => {
-            window.location.href = 'game.html?mode=multi';
-        };
-
-        // INICIALIZAÇÃO
-        window.onload = () => {
-            // Carregar nome salvo do chat se existir
-            const savedChatName = localStorage.getItem('chatPlayerName');
-            if (savedChatName) {
-                playerNameInput.value = savedChatName;
-            }
-            
-            updateConnectionStatus('disconnected');
-        };
-
-        // Cleanup ao sair da página
-        window.addEventListener('beforeunload', () => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.close();
-            }
-        });
-    </script>
+    <script src="client.js"></script>
 </body>
 </html>
